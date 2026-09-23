@@ -1,0 +1,1057 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Log CPK Validator</title>
+<style>
+:root{
+  --bg:#f6f7f9; --panel:#ffffff; --panel-2:#fbfcfd; --ink:#16191d; --ink-2:#5b636e;
+  --line:#dfe3e8; --line-2:#eceff2;
+  --ok:#0f7b4f; --ok-bg:#e7f6ee; --ok-line:#a9ddc3;
+  --ng:#b3261e; --ng-bg:#fdeceb; --ng-line:#f1b5b1;
+  --warn:#8a5a00; --warn-bg:#fdf4e3; --warn-line:#eccf95;
+  --info:#28566e; --info-bg:#eaf3f8; --info-line:#b6d5e4;
+  --accent:#2c5fb3; --accent-bg:#e8f0fc;
+  --mono:ui-monospace,"Cascadia Mono","Consolas","Courier New",monospace;
+  --sans:"Segoe UI","Microsoft JhengHei","PingFang TC",system-ui,sans-serif;
+}
+@media (prefers-color-scheme: dark){
+  :root:not([data-theme="light"]){
+    --bg:#15181c; --panel:#1d2126; --panel-2:#22272d; --ink:#f7f9fc; --ink-2:#c2ccd6;
+    --line:#3d4651; --line-2:#333a42;
+    --ok:#7fe0ad; --ok-bg:#14361f; --ok-line:#37764f;
+    --ng:#ffa39a; --ng-bg:#3f1a16; --ng-line:#8c372f;
+    --warn:#f4cd72; --warn-bg:#3a2b0a; --warn-line:#7d5f1f;
+    --info:#a6d6ec; --info-bg:#152f3d; --info-line:#356075;
+    --accent:#93bbf7; --accent-bg:#1f2e49;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#15181c; --panel:#1d2126; --panel-2:#22272d; --ink:#f7f9fc; --ink-2:#c2ccd6;
+  --line:#3d4651; --line-2:#333a42;
+  --ok:#7fe0ad; --ok-bg:#14361f; --ok-line:#37764f;
+  --ng:#ffa39a; --ng-bg:#3f1a16; --ng-line:#8c372f;
+  --warn:#f4cd72; --warn-bg:#3a2b0a; --warn-line:#7d5f1f;
+  --info:#a6d6ec; --info-bg:#152f3d; --info-line:#356075;
+  --accent:#93bbf7; --accent-bg:#1f2e49;
+}
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{background:var(--bg);color:var(--ink);font-family:var(--sans);font-size:15px;line-height:1.65;-webkit-font-smoothing:antialiased}
+.wrap{max-width:1180px;margin:0 auto;padding:24px 16px 72px}
+
+header.top{display:flex;align-items:baseline;gap:12px;flex-wrap:wrap;margin-bottom:4px}
+header.top h1{font-size:22px;margin:0;letter-spacing:-.01em}
+.ver{font-family:var(--mono);font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
+.sub{color:var(--ink-2);font-size:13.5px;margin:2px 0 22px}
+.sub code{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:4px;padding:1px 5px}
+.themebtn{margin-left:auto;background:var(--panel);color:var(--ink-2);border:1px solid var(--line);border-radius:7px;padding:5px 11px;font-size:12.5px;cursor:pointer;font-family:var(--sans)}
+.themebtn:hover{color:var(--ink);border-color:var(--ink-2)}
+
+.drop{background:var(--panel);border:1.5px dashed var(--line);border-radius:12px;padding:26px 20px;text-align:center;transition:border-color .15s,background .15s}
+.drop.hot{border-color:var(--accent);background:var(--panel-2)}
+.drop p{margin:0 0 14px;color:var(--ink-2);font-size:14px}
+.btnrow{display:flex;gap:10px;justify-content:center;flex-wrap:wrap}
+button.primary,label.filebtn{background:var(--accent);color:#fff;border:0;border-radius:8px;padding:9px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);display:inline-block}
+button.primary:hover,label.filebtn:hover{filter:brightness(1.08)}
+button.ghost{background:transparent;color:var(--ink-2);border:1px solid var(--line);border-radius:8px;padding:9px 16px;font-size:14px;cursor:pointer;font-family:var(--sans)}
+button.ghost:hover{color:var(--ink);border-color:var(--ink-2)}
+input[type=file]{display:none}
+
+details.ruleref{margin-top:34px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+details.ruleref>summary{cursor:pointer;padding:12px 16px;font-size:14px;font-weight:600;color:var(--ink-2);user-select:none}
+details.ruleref>summary:hover{color:var(--ink)}
+details.ruleref[open]>summary{border-bottom:1px solid var(--line-2)}
+.rulebody{padding:6px 16px 10px}
+details.paste{margin-top:14px;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+details.paste>summary{cursor:pointer;padding:11px 16px;font-size:14px;color:var(--ink-2);user-select:none}
+details.paste>summary:hover{color:var(--ink)}
+details.paste[open]>summary{border-bottom:1px solid var(--line-2)}
+.pastebody{padding:14px 16px}
+textarea{width:100%;min-height:190px;background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:8px;padding:11px;font-family:var(--mono);font-size:12.5px;line-height:1.55;resize:vertical}
+textarea:focus{outline:2px solid var(--accent);outline-offset:-1px}
+
+/* 判定橫幅 */
+.verdict{margin:24px 0 0;border-radius:12px;border:1px solid;padding:20px 22px;display:flex;align-items:center;gap:20px;flex-wrap:wrap}
+.verdict.ok{background:var(--ok-bg);border-color:var(--ok-line)}
+.verdict.ng{background:var(--ng-bg);border-color:var(--ng-line)}
+.verdict.warn{background:var(--warn-bg);border-color:var(--warn-line)}
+.badge{font-size:48px;font-weight:800;letter-spacing:.02em;line-height:1;font-family:var(--mono)}
+.verdict.ok .badge{color:var(--ok)} .verdict.ng .badge{color:var(--ng)} .verdict.warn .badge{color:var(--warn)}
+.vtext{flex:1;min-width:250px}
+.vtext .vh{font-weight:750;font-size:20px;margin-bottom:4px;letter-spacing:-.01em}
+.vtext .vd{font-size:14.5px;color:var(--ink-2)}
+.vact{display:flex;flex-direction:column;gap:8px;align-items:stretch}
+button.export{background:var(--panel);color:var(--accent);border:1.5px solid var(--accent);border-radius:8px;padding:11px 18px;font-size:14px;font-weight:600;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+button.export:hover{background:var(--accent);color:#fff}
+
+/* 整批提醒 */
+.batchnote{margin-top:12px;background:var(--panel);border:1px solid var(--warn-line);border-left:5px solid var(--warn);border-radius:9px;padding:14px 17px;font-size:14.5px}
+.batchnote b{color:var(--warn)}
+
+h2.sec{font-size:16.5px;font-weight:700;margin:34px 0 13px;padding-bottom:7px;border-bottom:1px solid var(--line);letter-spacing:.01em;display:flex;align-items:baseline;gap:7px;flex-wrap:wrap}
+h2.sec .cnt{color:var(--ink-2);font-weight:400;font-family:var(--mono);font-size:12.5px}
+h2.sec .secbtns{display:flex;gap:7px;margin-left:5px}
+button.tiny{background:var(--accent-bg);color:var(--accent);border:1.5px solid var(--accent);
+  border-radius:7px;padding:6px 15px;font-size:13.5px;font-weight:700;cursor:pointer;
+  font-family:var(--sans);white-space:nowrap;transition:background .13s,color .13s}
+button.tiny:hover{background:var(--accent);color:#fff}
+button.tiny:active{transform:translateY(1px)}
+
+/* 檔案總覽 */
+.ovtally{display:flex;gap:9px;flex-wrap:wrap;margin-bottom:11px}
+.tpill{font-size:14.5px;font-weight:700;border-radius:8px;padding:6px 15px;border:1px solid}
+.tpill.ng{color:var(--ng);border-color:var(--ng-line);background:var(--ng-bg)}
+.tpill.warn{color:var(--warn);border-color:var(--warn-line);background:var(--warn-bg)}
+.tpill.ok{color:var(--ok);border-color:var(--ok-line);background:var(--ok-bg)}
+.tpill.zero{opacity:.45}
+table.ov{width:100%;border-collapse:collapse;background:var(--panel);border:1px solid var(--line);border-radius:10px;overflow:hidden;font-size:15px}
+table.ov tr{border-bottom:1px solid var(--line-2);cursor:pointer}
+table.ov tr:last-child{border-bottom:0}
+table.ov tr:hover{background:var(--panel-2)}
+table.ov td{padding:11px 14px;vertical-align:middle}
+table.ov td.mk{width:44px;text-align:center;font-weight:800;font-size:17px}
+table.ov tr.r-ng td.mk{color:var(--ng)} table.ov tr.r-warn td.mk{color:var(--warn)} table.ov tr.r-ok td.mk{color:var(--ok)}
+table.ov td.fn{font-family:var(--mono);font-size:13.5px;max-width:330px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+table.ov td.ms{color:var(--ink-2)}
+table.ov tr.r-ng td.ms{color:var(--ink)}
+
+/* 摘要格 */
+.grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(155px,1fr));gap:1px;background:var(--line);border:1px solid var(--line);border-radius:10px;overflow:hidden}
+.cell{background:var(--panel);padding:9px 12px}
+.cell .k{font-size:11.5px;color:var(--ink-2);letter-spacing:.03em;margin-bottom:2px}
+.cell .v{font-family:var(--mono);font-size:14px;word-break:break-all}
+.cell .v.dim{color:var(--ink-2)}
+
+/* 問題卡 */
+.find{background:var(--panel);border:1px solid var(--line);border-left-width:4px;border-radius:9px;margin-bottom:11px;overflow:hidden}
+.find.sev-fatal{border-left-color:var(--ng)}
+.find.sev-warn{border-left-color:var(--warn)}
+.find.sev-info{border-left-color:var(--info)}
+.fhead{padding:13px 16px 11px;display:flex;gap:11px;align-items:baseline;flex-wrap:wrap}
+.tag{font-size:12.5px;font-weight:700;padding:3px 9px;border-radius:5px;flex-shrink:0}
+.sev-fatal .tag{color:var(--ng);background:var(--ng-bg);border:1px solid var(--ng-line)}
+.sev-warn .tag{color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line)}
+.sev-info .tag{color:var(--info);background:var(--info-bg);border:1px solid var(--info-line)}
+.ftitle{flex:1;min-width:190px;font-weight:750;font-size:18px;letter-spacing:-.01em}
+.floc{font-family:var(--mono);font-size:13.5px;color:var(--ink-2);flex-shrink:0}
+.fbody{padding:0 16px 14px}
+.qa{display:grid;grid-template-columns:58px 1fr;gap:10px 13px;font-size:15px;align-items:baseline}
+.qa .ql{color:var(--ink-2);font-size:13px;font-weight:600;text-align:right;padding-top:2px}
+.qa .qv{margin:0}
+.qa .qv.fix{font-weight:600}
+pre.snip{margin:13px 0 0;background:var(--panel-2);border:1px solid var(--line-2);border-radius:7px;padding:9px 11px;font-family:var(--mono);font-size:12px;line-height:1.6;overflow-x:auto;white-space:pre}
+pre.snip .ln{color:var(--ink-2);user-select:none}
+pre.snip mark{background:var(--warn-bg);color:var(--warn);border-radius:3px;padding:0 2px;font-weight:700}
+
+/* 單檔區塊 */
+.fileblk{background:var(--panel);border:1px solid var(--line);border-radius:11px;margin-bottom:12px;overflow:hidden;scroll-margin-top:12px}
+.fileblk>summary{cursor:pointer;padding:13px 15px;display:flex;gap:12px;align-items:center;user-select:none;font-size:15px}
+.fileblk>summary:hover{background:var(--panel-2)}
+.fileblk[open]>summary{border-bottom:1px solid var(--line-2)}
+.fname{font-family:var(--mono);font-size:14px;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.mini{font-size:13px;font-weight:700;padding:3px 10px;border-radius:5px;flex-shrink:0}
+.mini.ok{color:var(--ok);background:var(--ok-bg);border:1px solid var(--ok-line)}
+.mini.ng{color:var(--ng);background:var(--ng-bg);border:1px solid var(--ng-line)}
+.mini.warn{color:var(--warn);background:var(--warn-bg);border:1px solid var(--warn-line)}
+.fileinner{padding:14px 15px}
+.hint{font-size:13.5px;font-weight:600;color:var(--accent);flex-shrink:0;white-space:nowrap}
+.fileblk[open] .hint{display:none}
+.fileblk>summary::after{content:"▸";color:var(--ink-2);font-size:12px;flex-shrink:0}
+.fileblk[open]>summary::after{content:"▾"}
+@media (max-width:700px){ .hint{display:none} }
+
+table.rules{width:100%;border-collapse:collapse;font-size:14px}
+table.rules th,table.rules td{text-align:left;padding:9px 11px;border-bottom:1px solid var(--line-2);vertical-align:top}
+table.rules th{color:var(--ink-2);font-weight:600;font-size:11.5px;letter-spacing:.03em;border-bottom:1px solid var(--line)}
+table.rules td.sv{white-space:nowrap;font-size:12.5px;font-weight:600}
+table.rules tr:last-child td{border-bottom:0}
+.s-fatal{color:var(--ng)} .s-warn{color:var(--warn)} .s-info{color:var(--info)}
+
+.empty{color:var(--ok);font-size:15.5px;background:var(--ok-bg);border:1px solid var(--ok-line);border-radius:9px;padding:14px 16px;font-weight:600}
+@media (max-width:620px){
+  .badge{font-size:34px}
+  .verdict{gap:14px;padding:16px}
+  .vact{width:100%}
+  .qa{grid-template-columns:1fr;gap:3px}
+  .qa .ql{text-align:left}
+}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header class="top">
+  <h1>Log CPK Validator</h1>
+  <span class="ver">v1.1</span>
+  <button class="themebtn" id="themeBtn" type="button">切換深／淺色</button>
+</header>
+<p class="sub">
+  檢查產線測試 log 能不能跑出 CPK。合格顯示 <strong>OK</strong>，不合格顯示 <strong>NG</strong> 並告訴你問題在第幾行。
+  log 只在這台電腦的瀏覽器裡檢查，<strong>不會上傳到任何地方</strong>。
+</p>
+
+<div class="drop" id="drop">
+  <p>把 <code>.log</code> 檔拖到這裡（可以一次拖很多個），或</p>
+  <div class="btnrow">
+    <label class="filebtn" for="fileInput">選擇 log 檔…</label>
+    <input type="file" id="fileInput" multiple accept=".log,.LOG,.txt">
+    <button class="ghost" type="button" id="clearBtn">清除結果</button>
+  </div>
+</div>
+
+<details class="paste">
+  <summary>或直接貼上 log 內容</summary>
+  <div class="pastebody">
+    <textarea id="pasteBox" placeholder="把 log 內容複製貼在這裡…" spellcheck="false"></textarea>
+    <div class="btnrow" style="justify-content:flex-start;margin-top:11px">
+      <button class="primary" type="button" id="checkPaste">檢查這段 log</button>
+    </div>
+  </div>
+</details>
+
+<div id="results"></div>
+
+<details class="ruleref">
+  <summary>這個網頁會檢查什麼（15 項）</summary>
+  <div class="rulebody">
+    <table class="rules"><thead><tr>
+      <th style="width:86px">嚴重度</th><th style="width:26%">問題</th><th>為什麼會跑不出 CPK</th>
+    </tr></thead><tbody id="ruleTable"></tbody></table>
+  </div>
+</details>
+
+</div>
+
+<script>
+"use strict";
+
+/* ═══════════════════════ 規則定義 ═══════════════════════
+   每條規則四個欄位：title（問題名稱）／problem（是什麼狀況）／
+   impact（為什麼會跑不出 CPK）／fix（怎麼處理）                          */
+const RULES = {
+  R01:{sev:"fatal", title:"缺開頭日期時間",
+    problem:"開頭應為「2026/09/14 10:18:15」格式的日期時間，後接空格或 TAB，此行沒有。",
+    impact:"讀錯位置、抓到亂碼 → 程式停住，跑不出 CPK",
+    fix:"讓 log 這些行補上開頭的日期時間。"},
+
+  R02:{sev:"fatal", title:"認不出 log 格式",
+    problem:"找不到任何工具用來判斷格式的標記。",
+    impact:"不知道該用哪套規則 → 直接結束，沒有產出",
+    fix:"若 MT 換了新測試工具，需更新工具的格式支援。"},
+
+  R03:{sev:"fatal", title:"量測值含非數字字元",
+    problem:"量測值與上下限只能含數字、小數點、負號，此行有其他字元。",
+    impact:"數值不合法 → 立刻停住，跑不出 CPK",
+    fix:"檢查測試程式輸出設定，或確認 log 是否被人為改過。"},
+
+  R04:{sev:"fatal", title:"量測值為空",
+    problem:"有項目名稱，但抓不到量測值。",
+    impact:"沒有數值可用 → 立刻停住",
+    fix:"確認測試有跑完，或該行是否被截斷。"},
+
+  R05:{sev:"fatal", title:"上下限缺左括號",
+    problem:"上下限應為「( 下限 , 上限 )」，此行有 ) 卻沒有 (。",
+    impact:"找不到左括號 → 程式當掉關閉",
+    fix:"確認限值格式完整，通常是輸出被截斷。"},
+
+  R15:{sev:"warn", title:"上下限缺右括號",
+    problem:"此行上下限沒有用 ) 收尾。工具靠 ) 判斷是否為測項。",
+    impact:"不會當掉，但這個測項不算進 CPK",
+    fix:"確認限值格式是否完整。"},
+
+  R06:{sev:"fatal", title:"測項區塊缺結束行",
+    problem:"每段測項結束需有一行收尾（如 Test Time: 0.75 sec），此段沒有。",
+    impact:"後面測項和通過標記全被吃掉 → 沒有產出",
+    fix:"確認測試沒中途中斷，或 log 是否被剪貼過。"},
+
+  R07:{sev:"fatal", title:"缺結尾通過標記",
+    problem:"找不到代表 DUT 測試通過的標記。",
+    impact:"沒有這個標記就不寫檔 → 跑不出 CPK",
+    fix:"FAIL 的 log 本就沒有。若應為 PASS，確認測試是否跑完。"},
+
+  R08:{sev:"warn", title:"行過長",
+    problem:"此行超過 255 個字，工具一次只能讀 255 個字。",
+    impact:"被切成兩段讀，工具回報的行號會對不上",
+    fix:"通常是校正資料的長行，可不理會。"},
+
+  R09:{sev:"warn", title:"表頭缺欄位",
+    problem:"表頭應有 MODEL、WS ID、SN、TEST PC、MT VER，缺了其中幾個。",
+    impact:"CPK 跑得出來，但檔名會錯、SN 會空白",
+    fix:"確認測試程式的表頭設定完整。"},
+
+  R10:{sev:"warn", title:"LTE／NR 表格欄數不符",
+    problem:"LTE／NR 測項每列須為 7 欄，此處欄數不符。",
+    impact:"整段 LTE／NR 被跳過，這部分沒有 CPK",
+    fix:"確認輸出的表格欄位完整。"},
+
+  R11:{sev:"fatal", title:"MARGIN_DB 項目名稱不支援",
+    problem:"工具只認固定幾個名稱：11b 收 A、B；其他模式收 A、B、C、D。此處為清單外名稱。",
+    impact:"遇到不認得的名稱 → 立刻停住，跑不出 CPK",
+    fix:"若 MT 啟用新頻寬或調變方式，需更新工具的支援清單。"},
+
+  R14:{sev:"warn", title:"量測值非數字",
+    problem:"BT／LTE／APOLLO 測項的量測值或上下限含非數字字元。",
+    impact:"CPK 照樣產出，但這個測項永久消失",
+    fix:"檢查該行輸出格式。CPK 少項目時優先查這裡。"},
+
+  R12:{sev:"info", title:"MT 版本不一致",
+    problem:"同一次檢查的 log 出現不同 MT VER。",
+    impact:"拆成不同 CPK 檔，每個版本樣本變少",
+    fix:"確認是否混到不同批次。要合併統計可加 nomtv 參數。"},
+
+  R13:{sev:"info", title:"log 份數不足",
+    problem:"CPK 是統計數字，至少需 2 台 DUT 的 log。",
+    impact:"資料不足，不產出 CPK",
+    fix:"多收集幾份 log 再一起檢查。"}
+};
+
+const SEVNAME  = {fatal:"不合格", warn:"注意", info:"參考"};
+const VERDNAME = {NG:"不合格", WARN:"注意", OK:"合格"};
+
+/* ═══════════════════════ 還原工具的字串處理 ═══════════════════════ */
+const tab2space = s => s.replace(/\t/g, " ");
+const trimWs    = s => s.replace(/^\s+/, "").replace(/\s+$/, "");
+const collapse  = s => s.replace(/ {2,}/g, " ");
+const norm      = s => collapse(trimWs(tab2space(s)));
+
+const TS = /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} /;
+const hasTS = s => TS.test(s);
+const badNumber = s => s.length > 0 && /[^0-9.\-]/.test(s);
+
+const FMT = {UNKNOWN:"認不出來", ATE_SUITE:"ATE_SUITE", ITEST:"iTest",
+             IQRUN:"IQrun_Console", NI:"NI", IQRUN_LTE:"IQrun_Console_LTE"};
+
+const ITEM_TRIGGERS = ["RX_VERIFY_PER","_VERIFY_RX_PER","_VERIFY_INTEL_RX","RX_VERIFY PER",
+  "iBF_Calibration","_IMPLICIT_BEAMFORMING_CAL_VER","MTK_iBF_TEST_CMD","TX_MULTI_VERIFICATION",
+  "TEST_VERIFY","TX_VERIFY_EVM","_TX_VERIFY_ALL","_VERIFY_TX_ALL","_VERIFY_INTEL_TX",
+  "WLAN RX =====","WLAN TX =====","WLAN TX MODULATION =====","TX_VERIFY"];
+const BT_TRIGGERS = ["WT_VERIFY_BT_","BT_TX_BDR","BT_TX_EDR","BT_RX_BER","BT_TX_LE","BT_RX_LE"];
+const TERMINATORS = ["Test time:","Test Time:","[Info] Function completed","ERROR_MESSAGE"];
+const NI_HEADS = ["TX MODULATION =====","TX SPECTRUM =====","WLAN RX =====","WLAN TX =====",
+  "WLAN TX BF =====","DUT_OVERWRITE =====","WLAN DUT CALIBRATON =====",
+  "BT TX LE =====","BT TX BASIC =====","BT RX ====="];
+const NRLTE_HEAD = "Index,TestItem,Unit,MeasureValue,LowerLimit,UpperLimit,TestResult";
+
+const MARGIN_11B    = ["MARGIN_DB_LO_A_VSA","MARGIN_DB_LO_B_VSA","MARGIN_DB_UP_A_VSA","MARGIN_DB_UP_B_VSA"];
+const MARGIN_NON11B = MARGIN_11B.concat(
+  ["MARGIN_DB_LO_C_VSA","MARGIN_DB_LO_D_VSA","MARGIN_DB_UP_C_VSA","MARGIN_DB_UP_D_VSA"]);
+const isNormalised = n => /MARGIN_DB_LO_|MARGIN_DB_UP_|SYMBOL_CLK_ERR_ALL|SYMBOL_CLOCK_ERR|VIOLATION_PERCENT/.test(n);
+const isInterested = n =>
+  /EVM_AVG_|EVM_DB_AVG|EVM_DB_ALL/.test(n) ||
+  /POWER_AVG_|POWER_CHAIN_AVG_DBM|POWER_RMS_AVG|POWER_DBM_RMS_AVG/.test(n) ||
+  /VIOLATION_PERCENT|FREQ_ERROR_AVG|SYMBOL_CLK_ERR|SYMBOL_CLOCK_ERR/.test(n) ||
+  n === "PER" || isNormalised(n);
+
+/* ═══════════════════════ 分析單一檔案 ═══════════════════════ */
+function analyze(text, name){
+  const raw = text.split(/\r?\n/);
+  if (raw.length && raw[raw.length-1] === "") raw.pop();
+
+  const F = [], seen = new Set(), counts = {};
+  function add(id, lineNo, detail, extra){
+    counts[id] = (counts[id]||0) + 1;
+    const key = id + "|" + (extra && extra.dedup ? extra.dedup : lineNo);
+    if (seen.has(key)) return;
+    if ((counts[id] <= 4) || (extra && extra.always)){
+      seen.add(key);
+      F.push(Object.assign({id, line:lineNo, detail}, extra||{}));
+    }
+  }
+
+  const info = {format:"UNKNOWN", model:"", wsid:"", sn:"", testpc:"", mtver:"",
+                sections:0, items:0, pass:false, lines:raw.length};
+
+  /* pass 1：格式辨識 + 表頭 */
+  for (let i=0;i<raw.length;i++){
+    const s = norm(raw[i]);
+    if (info.format==="UNKNOWN"){
+      if (NI_HEADS.some(h=>s.includes(h)))                        info.format="NI";
+      else if (s.includes("ATC_CONNECT_TESTER"))                  info.format="ATE_SUITE";
+      else if (s.includes("SN: WT328E")||s.includes("SN: WT428")) info.format="ITEST";
+      else if (s.includes("IQFactRun_Console LTE"))               info.format="IQRUN_LTE";
+      else if (s.includes("GLOBAL_SETTINGS"))                     info.format="IQRUN";
+    } else if (info.format==="IQRUN" && s.includes("IQFactRun_Console LTE")) info.format="IQRUN_LTE";
+
+    const grab = label => {
+      const at = s.indexOf(label); if (at < 0) return null;
+      let v = s.slice(at + label.length);
+      const e = v.indexOf("=;"); if (e >= 0) v = v.slice(0, e);
+      return trimWs(v);
+    };
+    if (!info.model)  { const v=grab(" MODEL = ");  if (v) info.model = v; }
+    if (!info.wsid)   { const v=grab("WS ID = ");   if (v) info.wsid = v; }
+    if (!info.testpc) { const v=grab("TEST PC = "); if (v) info.testpc = v; }
+    if (!info.mtver)  { const v=grab("MT VER = ");  if (v) info.mtver = v; }
+    if (!info.sn && s.includes("SN = ") && s.includes(";=")){ const v=grab("SN = "); if (v) info.sn = v; }
+    if (s.includes("@@@P A S S")) info.pass = true;
+    if (raw[i].length > 255)
+      add("R08", i+1, `共 ${raw[i].length} 個字，超過上限(255)`, {dedup:"len"});
+  }
+
+  if (info.format === "UNKNOWN")
+    add("R02", 0, "找不到可辨識的格式標記", {always:true, noSnip:true});
+
+  const miss = [];
+  if (!info.model)  miss.push("MODEL");
+  if (!info.wsid)   miss.push("WS ID");
+  if (!info.sn)     miss.push("SN");
+  if (!info.testpc) miss.push("TEST PC");
+  if (!info.mtver)  miss.push("MT VER");
+  if (miss.length)
+    add("R09", 0, "缺少：" + miss.join("、"), {always:true, noSnip:true});
+
+  if (!info.pass)
+    add("R07", 0, "找不到 @@@P A S S", {always:true, noSnip:true});
+
+  /* pass 2：走訪測項區塊 */
+  let inSec = false, secStart = 0, secKind = "";
+  const st = {mode11b:false};
+
+  for (let i=0;i<raw.length;i++){
+    const s = norm(raw[i]);
+    if (!s) continue;
+
+    if (!inSec){
+      const isWifi = ITEM_TRIGGERS.some(t=>s.includes(t)) && s.includes(".") && !s.includes("Get");
+      const isBT   = BT_TRIGGERS.some(t=>s.includes(t)) ||
+                     (/\.(TX_LE|RX_LE|TX_BDR|TX_EDR)/.test(s) && s.includes("_____")) ||
+                     (s.includes("BT TX ") && s.includes("=====")) || s.includes("BT RX =====");
+      if (s.includes(NRLTE_HEAD)){ checkNRLTE(raw, i, s, add); continue; }
+      if (isWifi || isBT){
+        if (s.includes("sec") || s.includes(" s")) continue;
+        inSec = true; secStart = i; secKind = isBT ? "BT" : "WiFi"; info.sections++;
+      }
+      continue;
+    }
+
+    if (TERMINATORS.some(t=>s.includes(t))){ inSec = false; continue; }
+
+    if (ITEM_TRIGGERS.some(t=>s.includes(t)) && s.includes(".") && !s.includes("Get")){
+      add("R06", secStart+1,
+          `第 ${secStart+1} 行起這段，到第 ${i+1} 行出現下一段時仍未收尾`,
+          {dedup:"unterm", endLine:i+1});
+      secStart = i; info.sections++;
+      continue;
+    }
+    checkMeasureLine(raw, i, s, secKind, info, add, st);
+  }
+
+  if (inSec)
+    add("R06", secStart+1,
+        `第 ${secStart+1} 行起這段讀到檔尾仍未收尾，後面內容全部讀不到`,
+        {always:true, dedup:"eof"});
+
+  const nFatal = F.filter(f=>RULES[f.id].sev==="fatal").length;
+  const nWarn  = F.filter(f=>RULES[f.id].sev==="warn").length;
+  const nInfo  = F.filter(f=>RULES[f.id].sev==="info").length;
+  const verdict = nFatal ? "NG" : (nWarn ? "WARN" : "OK");
+  return {name, info, findings:F, counts, raw, verdict, nFatal, nWarn, nInfo};
+}
+
+function checkMeasureLine(raw, i, s, secKind, info, add, st){
+  const ln = i+1, ts = hasTS(s);
+
+  /* iTest TX_[n]：從行尾解析，不吃時間戳 */
+  if (s.includes("TX_[")){
+    if (!s.includes(")")) return;
+    if (!s.includes("(")){
+      add("R05", ln, "有 ) 卻沒有 (", {dedup:"paren"});
+      return;
+    }
+    const inner = s.slice(s.indexOf("(")+1, s.lastIndexOf(")"));
+    const p = inner.trim().split(/ +/);
+    const afterColon = s.lastIndexOf(":") >= 0 ? trimWs(s.slice(s.lastIndexOf(":")+1)) : "";
+    reportNums(add, ln, trimUnit((afterColon.split(/ +/)[0])||""), p[0]||"", p[p.length-1]||"", "TX");
+    info.items++;
+    return;
+  }
+
+  if (s.includes("RX_[") && s.includes("Tester Send:")) return;
+
+  /* iTest PER：Pass:/Fail:（定位式，必須有時間戳） */
+  if (s.includes("Pass") && s.includes("Fail")){
+    if (!ts){
+      add("R01", ln, "RX PER 量測行", {dedup:"per"});
+      return;
+    }
+    if (!s.includes("(") || !s.includes(")")){
+      add("R05", ln, "PER 行括號不成對", {dedup:"paren"});
+      return;
+    }
+    const p = s.slice(s.indexOf("(")+1, s.lastIndexOf(")")).trim().split(/ +/);
+    const m = s.match(/Fail:\s*([0-9.\-]+)%/);
+    reportNums(add, ln, m ? m[1] : "", "", p[p.length-1]||"", "PER");
+    info.items++;
+    return;
+  }
+
+  /* IQrun / NI：項目 : 數值 單位 (下限, 上限) */
+  if (s.includes(" : ") || /\s:\s*-?[0-9]/.test(s)){
+    if (!ts){
+      add("R01", ln, "量測資料行", {dedup:"meas"});
+      return;
+    }
+    const tokens = s.split(" "), itemName = tokens[2] || "";
+    const hasL = s.includes("("), hasR = s.includes(")");
+    if (hasR && !hasL){
+      add("R05", ln, "有 ) 卻沒有 (", {dedup:"paren"});
+      return;
+    }
+    if (hasL && !hasR){
+      add("R15", ln, `測項「${itemName}」沒有 ) 收尾`, {dedup:"noparen"});
+      return;
+    }
+    if (!hasL){
+      if (itemName === "STANDARD") st.mode11b = (tokens[4] === "802.11b");
+      return;
+    }
+    const inner = s.slice(s.lastIndexOf("(")+1, s.lastIndexOf(")"));
+    let lo = "", hi = "";
+    if (inner.includes(",")){
+      lo = trimWs(inner.slice(0, inner.indexOf(",")));
+      hi = trimWs(inner.slice(inner.indexOf(",")+1));
+    } else { const p = inner.trim().split(/ +/); lo = p[0]||""; hi = p[p.length-1]||""; }
+
+    // IQrun 路徑不做 TrimUnit（只有 ITEST TX 的 1254 行會），所以任何雜字元都會讓工具中止
+    const meas = tokens[4] || "";
+
+    if (!isNormalised(itemName) && !lo && !hi) return;
+
+    if (secKind === "BT"){
+      if (meas === "" || badNumber(meas) || badNumber(lo) || badNumber(hi)){
+        const b = [];
+        if (meas === "") b.push("量測值為空");
+        else if (badNumber(meas)) b.push(`量測值「${meas}」`);
+        if (badNumber(lo)) b.push(`下限「${lo}」`);
+        if (badNumber(hi)) b.push(`上限「${hi}」`);
+        add("R14", ln, `${itemName}：` + b.join("、"), {dedup:"bt"});
+      } else info.items++;
+      return;
+    }
+
+    if (!isInterested(itemName)) return;
+    if (itemName.includes("VIOLATION_PERCENT") || itemName === "PER") lo = "";
+
+    if (/MARGIN_DB_(LO|UP)_/.test(itemName)){
+      const allow = st.mode11b ? MARGIN_11B : MARGIN_NON11B;
+      if (!allow.some(a => itemName.includes(a))){
+        add("R11", ln,
+            `項目「${itemName}」不在清單內（${st.mode11b ? "802.11b" : "非 802.11b"} 模式，` +
+            `可用 ${allow.map(a=>a.replace("MARGIN_DB_","").replace("_VSA","")).join("、")}）`,
+            {dedup:"margin"});
+        return;
+      }
+      info.items++;
+      return;
+    }
+    reportNums(add, ln, meas, lo, hi, itemName);
+    info.items++;
+    return;
+  }
+
+  if (s.includes("[") && s.includes("]") && !ts && secKind)
+    add("R01", ln, "NI 限值宣告行", {dedup:"nipar"});
+}
+
+function trimUnit(str){
+  let o = "";
+  for (const c of str){
+    if ((c>="0"&&c<="9")||c==="."||c==="-") o += c; else break;
+  }
+  return o;
+}
+
+function reportNums(add, ln, meas, lo, hi, what){
+  if (meas === ""){ add("R04", ln, `${what} 抓不到量測值`, {dedup:"empty"}); return; }
+  const b = [];
+  if (badNumber(meas)) b.push(`量測值「${meas}」`);
+  if (badNumber(lo))   b.push(`下限「${lo}」`);
+  if (badNumber(hi))   b.push(`上限「${hi}」`);
+  if (b.length) add("R03", ln, b.join("、"), {dedup:"num"});
+}
+
+function checkNRLTE(raw, i, headLine, add){
+  if (!headLine.includes(NRLTE_HEAD)){ add("R10", i+1, "表頭與預期不符", {}); return; }
+  for (let j=i+1;j<raw.length;j++){
+    const s = norm(raw[j]);
+    if (!s || !/^\d{4}\/\d{2}\/\d{2}/.test(s)) break;
+    const body = s.slice(20);
+    if (!/^[A-Za-z0-9_]*\d+,/.test(body) && !body.includes(",")) break;
+    const c = body.split(",").length;
+    if (c !== 7){ add("R10", j+1, `此列 ${c} 欄，應為 7 欄`, {dedup:"nrcols"}); return; }
+  }
+}
+
+function crossCheck(reports){
+  const out = [];
+  const vers = [...new Set(reports.map(r=>r.info.mtver).filter(Boolean))];
+  if (vers.length > 1)
+    out.push({id:"R12", detail:`出現 ${vers.length} 種 MT VER：${vers.join("、")}`});
+  if (!reports.some(r=>r.verdict==="NG") && reports.length < 2)
+    out.push({id:"R13", detail:`只檢查了 ${reports.length} 份`});
+  return out;
+}
+
+/* ═══════════════════════ 畫面 ═══════════════════════ */
+const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const $ = id => document.getElementById(id);
+let LAST = null;   // 匯出 CSV 用
+
+function snippet(raw, lineNo, endLine){
+  if (!lineNo || !raw) return "";
+  const idx = lineNo - 1;
+  const from = Math.max(0, idx - 2);
+  const to   = Math.min(raw.length - 1, (endLine ? endLine - 1 : idx) + 2);
+  let h = "";
+  for (let k = from; k <= to; k++){
+    const n = String(k+1).padStart(6, " ");
+    const b = esc(raw[k]);
+    h += `<span class="ln">${n} │ </span>` + (k===idx ? `<mark>${b||" "}</mark>` : b) + "\n";
+  }
+  return `<pre class="snip">${h.replace(/\n$/, "")}</pre>`;
+}
+
+
+function findingHTML(f, raw){
+  const R = RULES[f.id];
+  let h = `<div class="find sev-${R.sev}">`;
+  h += `<div class="fhead"><span class="tag">${SEVNAME[R.sev]}</span>`;
+  h += `<span class="ftitle">${esc(R.title)}</span>`;
+  h += `<span class="floc">${f.line ? "第 "+f.line+" 行" : "整份檔案"}</span></div>`;
+  h += `<div class="fbody"><div class="qa">`;
+  h += `<span class="ql">問題</span><p class="qv">${esc(R.problem)}${f.detail ? " <span style=\"color:var(--ink-2)\">（"+esc(f.detail)+"）</span>" : ""}</p>`;
+  h += `<span class="ql">影響</span><p class="qv">${esc(R.impact)}</p>`;
+  h += `<span class="ql">怎麼辦</span><p class="qv fix">${esc(R.fix)}</p>`;
+  h += `</div>`;
+  if (!f.noSnip) h += snippet(raw, f.line, f.endLine);
+  h += `</div></div>`;
+  return h;
+}
+
+function summaryHTML(info){
+  const c = (k,v,dim) => `<div class="cell"><div class="k">${k}</div><div class="v${dim?" dim":""}">${esc(v||"—")}</div></div>`;
+  return `<div class="grid">` +
+    c("log 格式", FMT[info.format]||info.format) + c("機種 MODEL", info.model) +
+    c("站別 WS ID", info.wsid) + c("序號 SN", info.sn) +
+    c("測試電腦", info.testpc) + c("MT 版本", info.mtver) +
+    c("測項區塊數", info.sections) + c("預估 CPK 測項", info.items) +
+    c("通過標記", info.pass ? "有" : "沒有") + c("總行數", info.lines, true) + `</div>`;
+}
+
+/* 每個檔案最主要的那一句話 */
+function oneLiner(r){
+  if (r.verdict === "OK") return "沒有問題";
+  const order = {fatal:0, warn:1, info:2};
+  const f = [...r.findings].sort((a,b)=>order[RULES[a.id].sev]-order[RULES[b.id].sev])[0];
+  if (!f) return "沒有問題";
+  const extra = r.counts[f.id] > 1 ? `（共 ${r.counts[f.id]} 處）` : "";
+  return (f.line ? `第 ${f.line} 行：` : "") + RULES[f.id].title + extra;
+}
+
+function overviewHTML(reports){
+  const ng = reports.filter(r=>r.verdict==="NG");
+  const wn = reports.filter(r=>r.verdict==="WARN");
+  const ok = reports.filter(r=>r.verdict==="OK");
+  let h = `<h2 class="sec">每個檔案的結果<span class="cnt">共 ${reports.length} 份</span></h2>`;
+  h += `<div class="ovtally">`;
+  h += `<span class="tpill ng${ng.length?"":" zero"}">✗ 不合格 ${ng.length}</span>`;
+  h += `<span class="tpill warn${wn.length?"":" zero"}">！注意 ${wn.length}</span>`;
+  h += `<span class="tpill ok${ok.length?"":" zero"}">✓ 合格 ${ok.length}</span>`;
+  h += `</div><table class="ov">`;
+  const mark = {NG:"✗", WARN:"!", OK:"✓"}, kls = {NG:"r-ng", WARN:"r-warn", OK:"r-ok"};
+  for (const r of ng.concat(wn, ok)){
+    const i = reports.indexOf(r);
+    h += `<tr class="${kls[r.verdict]}" data-go="f${i}">`;
+    h += `<td class="mk">${mark[r.verdict]}</td>`;
+    h += `<td class="fn" title="${esc(r.name)}">${esc(r.name)}</td>`;
+    h += `<td class="ms">${esc(oneLiner(r))}</td></tr>`;
+  }
+  return h + `</table>`;
+}
+
+function render(reports){
+  LAST = reports;
+  const box = $("results");
+  const cross = crossCheck(reports);
+  const ngList = reports.filter(r=>r.verdict==="NG");
+  const wnList = reports.filter(r=>r.verdict==="WARN");
+  const okList = reports.filter(r=>r.verdict==="OK");
+  const multi = reports.length > 1;
+
+  const v = ngList.length ? "NG" : (wnList.length || cross.length ? "WARN" : "OK");
+  const cls = v==="NG" ? "ng" : (v==="WARN" ? "warn" : "ok");
+
+  /* 最主要的原因 */
+  let mainReason = "";
+  if (ngList.length){
+    const tally = {};
+    ngList.forEach(r=>r.findings.forEach(f=>{
+      if (RULES[f.id].sev==="fatal") tally[f.id] = (tally[f.id]||0) + (r.counts[f.id]||1);
+    }));
+    const top = Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
+    if (top) mainReason = `主要原因：${RULES[top[0]].title}（共 ${top[1]} 處）。`;
+  }
+
+  let headline, detail;
+  if (!multi){
+    const r = reports[0];
+    headline = v==="NG" ? "這份 log 跑不出 CPK"
+             : v==="WARN" ? "這份 log 可以跑，但有地方要注意"
+             : "這份 log 合格";
+    detail = v==="NG" ? mainReason + "下面會告訴你問題在第幾行。"
+           : v==="WARN" ? "沒有致命問題，CPK 應該產得出來，但下面幾點可能讓某些測項漏掉。"
+           : "log2cpk2 v1.28 應該可以正常導出 CPK。";
+  } else {
+    headline = `${reports.length} 份 log：`
+      + [ngList.length?`${ngList.length} 份不合格`:null,
+          wnList.length?`${wnList.length} 份要注意`:null,
+          okList.length?`${okList.length} 份合格`:null].filter(Boolean).join("、");
+    detail = ngList.length
+      ? mainReason + "只要有一份不合格，整批就跑不出正確的 CPK。"
+      : (wnList.length ? "沒有不合格的檔案，CPK 應該產得出來，但有幾點要注意。"
+                       : "全部合格，可以正常導出 CPK。");
+  }
+
+  let h = `<div class="verdict ${cls}"><div class="badge">${v}</div>`;
+  h += `<div class="vtext"><div class="vh">${esc(headline)}</div><div class="vd">${esc(detail)}</div></div>`;
+  h += `<div class="vact"><button class="export" type="button" id="expBtn">⬇ 一鍵匯出 Excel</button></div>`;
+  h += `</div>`;
+
+  /* 整批會被拖垮的提醒 */
+  if (multi && ngList.length && okList.length + wnList.length > 0){
+    h += `<div class="batchnote"><b>注意整批會被拖垮：</b>`;
+    h += `工具是照<b>檔名順序</b>一份一份讀，讀到第一個不合格的檔案就會停住 —— `;
+    h += `排在它<b>後面</b>的檔案完全不會被處理，而且最後計算 CPK 的步驟也不會執行。`;
+    h += `所以就算有 ${okList.length + wnList.length} 份是好的，也不能直接跑。`;
+    h += `建議先把不合格的 ${ngList.length} 份修好或移走，再整批重跑。</div>`;
+  }
+
+  if (multi) h += overviewHTML(reports);
+
+  if (!multi){
+    const r = reports[0];
+    h += `<h2 class="sec">檔案資訊<span class="cnt">${esc(r.name)}</span></h2>` + summaryHTML(r.info);
+    h += `<h2 class="sec">檢查結果<span class="cnt">${r.findings.length} 項</span></h2>`;
+    h += r.findings.length ? r.findings.map(f=>findingHTML(f, r.raw)).join("")
+                           : `<div class="empty">✓ 沒有發現任何問題，所有檢查都通過。</div>`;
+  } else {
+    h += `<h2 class="sec">各檔詳細內容<span class="cnt">共 ${reports.length} 份</span>`;
+    h += `<span class="secbtns">`;
+    h += `<button class="tiny" type="button" id="toggleAll">全部展開</button>`;
+    h += `</span></h2>`;
+    const order = {NG:0, WARN:1, OK:2};
+    const sorted = [...reports].sort((a,b)=>order[a.verdict]-order[b.verdict]);
+    for (const r of sorted){
+      const i = reports.indexOf(r);
+      const mc = r.verdict==="NG" ? "ng" : (r.verdict==="WARN" ? "warn" : "ok");
+      h += `<details class="fileblk" id="f${i}">`;
+      h += `<summary><span class="mini ${mc}">${VERDNAME[r.verdict]}</span>`;
+      h += `<span class="fname">${esc(r.name)}</span>`;
+      h += `<span class="floc">${esc(oneLiner(r))}</span>`;
+      h += `<span class="hint">點擊查看詳細內容</span></summary>`;
+      h += `<div class="fileinner">` + summaryHTML(r.info);
+      h += r.findings.length
+        ? `<div style="margin-top:14px">` + r.findings.map(f=>findingHTML(f, r.raw)).join("") + `</div>`
+        : `<div class="empty" style="margin-top:14px">✓ 這份檔案沒有問題。</div>`;
+      h += `</div></details>`;
+    }
+  }
+
+  if (cross.length){
+    h += `<h2 class="sec">整批一起看<span class="cnt">${cross.length} 項</span></h2>`;
+    h += cross.map(c=>findingHTML({id:c.id, line:0, detail:c.detail, noSnip:true}, null)).join("");
+  }
+
+  box.innerHTML = h;
+
+  const eb = $("expBtn");
+  if (eb) eb.addEventListener("click", exportXLSX);
+
+  /* 一顆按鈕交替展開／收合全部；文字跟著下一次要做的動作 */
+  const tg = $("toggleAll");
+  const blocks = () => [...box.querySelectorAll("details.fileblk")];
+  function syncLabel(){
+    if (!tg) return;
+    const bs = blocks();
+    tg.textContent = bs.length && bs.every(d => d.open) ? "一鍵收合" : "全部展開";
+  }
+  if (tg){
+    tg.addEventListener("click", () => {
+      const bs = blocks();
+      const openThem = bs.some(d => !d.open);   // 只要還有收著的就全部展開
+      bs.forEach(d => { d.open = openThem; });
+      syncLabel();
+    });
+    // 手動點開／收起個別檔案時，按鈕文字也要跟上
+    blocks().forEach(d => d.addEventListener("toggle", syncLabel));
+    syncLabel();
+  }
+  box.querySelectorAll("tr[data-go]").forEach(tr => {
+    tr.addEventListener("click", () => {
+      const el = document.getElementById(tr.getAttribute("data-go"));
+      if (el){ el.open = true; el.scrollIntoView({behavior:"smooth", block:"start"}); syncLabel(); }
+    });
+  });
+  box.scrollIntoView({behavior:"smooth", block:"start"});
+}
+
+/* ═══════════════════════ 匯出 Excel（.xlsx，含底色）═══════════════════════
+   不用任何外部套件：xlsx 本質是一包 ZIP 裝 XML，這裡自己組出來，維持離線可用。
+   底色依「這一項」的嚴重度：不合格→淡粉、注意→淡黃、其餘不上色。            */
+
+const XL_HEADER = ["檔案名稱","這個檔案","這一項","問題","行號","該行內容","影響","建議做法",
+                   "機種","站別","序號","MT版本"];
+const XL_WIDTH  = [40, 10, 8, 46, 7, 58, 44, 44, 20, 9, 14, 11];
+
+function buildRows(reports){
+  const out = [];
+  const vOrder = {NG:0, WARN:1, OK:2}, sOrder = {fatal:0, warn:1, info:2};
+  for (const r of [...reports].sort((a,b)=>vOrder[a.verdict]-vOrder[b.verdict])){
+    const meta = [r.info.model, r.info.wsid, r.info.sn, r.info.mtver];
+    if (!r.findings.length){
+      out.push({sev:null, cells:[r.name, "合格", "", "沒有問題", "", "", "", ""].concat(meta)});
+      continue;
+    }
+    for (const f of [...r.findings].sort((a,b)=>sOrder[RULES[a.id].sev]-sOrder[RULES[b.id].sev])){
+      const R = RULES[f.id], n = r.counts[f.id] || 1;
+      out.push({sev:R.sev, cells:[
+        r.name, VERDNAME[r.verdict], SEVNAME[R.sev],
+        R.title + (n > 1 ? `（共 ${n} 處）` : "") + (f.detail ? `：${f.detail}` : ""),
+        f.line || "",
+        f.line && r.raw ? (r.raw[f.line-1] || "") : "",
+        R.impact, R.fix].concat(meta)});
+    }
+  }
+  return out;
+}
+
+/* XML 用不得的控制字元要先清掉，否則 Excel 會說檔案損毀 */
+const BAD_CHARS = new RegExp("[\\u0000-\\u0008\\u000B\\u000C\\u000E-\\u001F]", "g");
+function xmlEsc(v){
+  let s = String(v == null ? "" : v).replace(BAD_CHARS, "");
+  if (s.length > 32000) s = s.slice(0, 32000);
+  return s.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
+}
+
+function colRef(i){
+  let s = "", n = i + 1;
+  while (n > 0){ const m = (n - 1) % 26; s = String.fromCharCode(65 + m) + s; n = (n - m - 1) / 26; }
+  return s;
+}
+
+const XL_CT =
+'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types">' +
+'<Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/>' +
+'<Default Extension="xml" ContentType="application/xml"/>' +
+'<Override PartName="/xl/workbook.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet.main+xml"/>' +
+'<Override PartName="/xl/worksheets/sheet1.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.worksheet+xml"/>' +
+'<Override PartName="/xl/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.spreadsheetml.styles+xml"/>' +
+'</Types>';
+
+const XL_RELS =
+'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
+'</Relationships>';
+
+const XL_WB =
+'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+'<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
+'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
+'<sheets><sheet name="檢查結果" sheetId="1" r:id="rId1"/></sheets></workbook>';
+
+const XL_WBRELS =
+'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+'<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships">' +
+'<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/worksheet" Target="worksheets/sheet1.xml"/>' +
+'<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
+'</Relationships>';
+
+/* fill 0/1 是 Excel 保留的，自訂色從 2 開始。色碼與網頁上的一致 */
+const XL_STYLES =
+'<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+'<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+'<fonts count="2">' +
+'<font><sz val="11"/><name val="Calibri"/></font>' +
+'<font><b/><sz val="11"/><name val="Calibri"/></font>' +
+'</fonts>' +
+'<fills count="4">' +
+'<fill><patternFill patternType="none"/></fill>' +
+'<fill><patternFill patternType="gray125"/></fill>' +
+'<fill><patternFill patternType="solid"><fgColor rgb="FFF9C9C9"/><bgColor indexed="64"/></patternFill></fill>' +
+'<fill><patternFill patternType="solid"><fgColor rgb="FFFFF0A3"/><bgColor indexed="64"/></patternFill></fill>' +
+'</fills>' +
+'<borders count="1"><border><left/><right/><top/><bottom/><diagonal/></border></borders>' +
+'<cellStyleXfs count="1"><xf numFmtId="0" fontId="0" fillId="0" borderId="0"/></cellStyleXfs>' +
+'<cellXfs count="4">' +
+'<xf numFmtId="0" fontId="0" fillId="0" borderId="0" xfId="0" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>' +
+'<xf numFmtId="0" fontId="1" fillId="0" borderId="0" xfId="0" applyFont="1" applyAlignment="1"><alignment vertical="top"/></xf>' +
+'<xf numFmtId="0" fontId="0" fillId="2" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>' +
+'<xf numFmtId="0" fontId="0" fillId="3" borderId="0" xfId="0" applyFill="1" applyAlignment="1"><alignment vertical="top" wrapText="1"/></xf>' +
+'</cellXfs>' +
+'<cellStyles count="1"><cellStyle name="Normal" xfId="0" builtinId="0"/></cellStyles>' +
+'</styleSheet>';
+
+function sheetXML(rows){
+  const STYLE = {fatal:2, warn:3};
+  const last = colRef(XL_HEADER.length - 1);
+  let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
+    '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
+    `<dimension ref="A1:${last}${rows.length + 1}"/>` +
+    '<sheetViews><sheetView workbookViewId="0">' +
+    '<pane ySplit="1" topLeftCell="A2" activePane="bottomLeft" state="frozen"/>' +
+    '</sheetView></sheetViews><cols>';
+  XL_WIDTH.forEach((w, i) => {
+    x += `<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`;
+  });
+  x += '</cols><sheetData>';
+  x += '<row r="1">' + XL_HEADER.map((h, i) =>
+    `<c r="${colRef(i)}1" s="1" t="inlineStr"><is><t>${xmlEsc(h)}</t></is></c>`).join("") + '</row>';
+  rows.forEach((row, ri) => {
+    const rn = ri + 2, s = STYLE[row.sev] || 0;
+    x += `<row r="${rn}">` + row.cells.map((c, i) => {
+      const ref = colRef(i) + rn;
+      if (c === "" || c == null) return s ? `<c r="${ref}" s="${s}"/>` : "";
+      if (typeof c === "number") return `<c r="${ref}" s="${s}"><v>${c}</v></c>`;
+      return `<c r="${ref}" s="${s}" t="inlineStr"><is><t xml:space="preserve">${xmlEsc(c)}</t></is></c>`;
+    }).join("") + '</row>';
+  });
+  return x + '</sheetData>' + `<autoFilter ref="A1:${last}${rows.length + 1}"/>` + '</worksheet>';
+}
+
+function crc32(buf){
+  let t = crc32.table;
+  if (!t){
+    t = crc32.table = new Int32Array(256);
+    for (let n = 0; n < 256; n++){
+      let c = n;
+      for (let k = 0; k < 8; k++) c = (c & 1) ? (0xEDB88320 ^ (c >>> 1)) : (c >>> 1);
+      t[n] = c;
+    }
+  }
+  let c = -1;
+  for (let i = 0; i < buf.length; i++) c = (c >>> 8) ^ t[(c ^ buf[i]) & 0xFF];
+  return (c ^ -1) >>> 0;
+}
+
+/* 最小可用的 ZIP（store，不壓縮）*/
+function zipStore(files){
+  const enc = new TextEncoder();
+  const u16 = n => [n & 0xFF, (n >>> 8) & 0xFF];
+  const u32 = n => [n & 0xFF, (n >>> 8) & 0xFF, (n >>> 16) & 0xFF, (n >>> 24) & 0xFF];
+  const now = new Date();
+  const dosTime = ((now.getHours() << 11) | (now.getMinutes() << 5) | (now.getSeconds() >> 1)) & 0xFFFF;
+  const dosDate = (((now.getFullYear() - 1980) << 9) | ((now.getMonth() + 1) << 5) | now.getDate()) & 0xFFFF;
+
+  const parts = [], central = [];
+  let offset = 0;
+  for (const f of files){
+    const name = enc.encode(f.name), crc = crc32(f.data), len = f.data.length;
+    const local = [].concat([0x50,0x4B,0x03,0x04], u16(20), u16(0x0800), u16(0),
+      u16(dosTime), u16(dosDate), u32(crc), u32(len), u32(len), u16(name.length), u16(0));
+    parts.push(new Uint8Array(local), name, f.data);
+    central.push([].concat([0x50,0x4B,0x01,0x02], u16(20), u16(20), u16(0x0800), u16(0),
+      u16(dosTime), u16(dosDate), u32(crc), u32(len), u32(len), u16(name.length),
+      u16(0), u16(0), u16(0), u16(0), u32(0), u32(offset), [...name]));
+    offset += local.length + name.length + len;
+  }
+  const cd = [].concat(...central);
+  const eocd = [].concat([0x50,0x4B,0x05,0x06], u16(0), u16(0),
+    u16(files.length), u16(files.length), u32(cd.length), u32(offset), u16(0));
+  parts.push(new Uint8Array(cd), new Uint8Array(eocd));
+
+  const out = new Uint8Array(parts.reduce((a, p) => a + p.length, 0));
+  let o = 0;
+  for (const p of parts){ out.set(p, o); o += p.length; }
+  return out;
+}
+
+function buildXLSX(reports){
+  const enc = new TextEncoder();
+  const F = (name, str) => ({name, data: enc.encode(str)});
+  return zipStore([
+    F("[Content_Types].xml",        XL_CT),
+    F("_rels/.rels",                XL_RELS),
+    F("xl/workbook.xml",            XL_WB),
+    F("xl/_rels/workbook.xml.rels", XL_WBRELS),
+    F("xl/styles.xml",              XL_STYLES),
+    F("xl/worksheets/sheet1.xml",   sheetXML(buildRows(reports)))
+  ]);
+}
+
+function exportXLSX(){
+  if (!LAST || !LAST.length) return;
+  const blob = new Blob([buildXLSX(LAST)],
+    {type:"application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"});
+  const d = new Date(), p = n => String(n).padStart(2, "0");
+  const stamp = `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
+  const a = document.createElement("a");
+  a.href = URL.createObjectURL(blob);
+  a.download = `log檢查結果_${stamp}.xlsx`;
+  document.body.appendChild(a); a.click();
+  setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
+/* ═══════════════════════ 事件 ═══════════════════════ */
+function run(items){ if (items.length) render(items.map(o=>analyze(o.text, o.name))); }
+
+function readFiles(files){
+  const list = [...files].filter(f=>/\.(log|txt)$/i.test(f.name));
+  const use = list.length ? list : [...files];
+  if (!use.length) return;
+  Promise.all(use.map(f => new Promise(res => {
+    const fr = new FileReader();
+    fr.onload  = () => res({name:f.name, text:fr.result});
+    fr.onerror = () => res({name:f.name, text:""});
+    fr.readAsText(f, "utf-8");
+  }))).then(run);
+}
+
+$("fileInput").addEventListener("change", e => readFiles(e.target.files));
+$("checkPaste").addEventListener("click", () => {
+  const t = $("pasteBox").value;
+  if (!trimWs(t)){ alert("請先貼上 log 內容。"); return; }
+  run([{name:"（貼上的內容）", text:t}]);
+});
+$("clearBtn").addEventListener("click", () => {
+  $("results").innerHTML = ""; $("pasteBox").value = ""; $("fileInput").value = ""; LAST = null;
+});
+
+const drop = $("drop");
+["dragenter","dragover"].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.add("hot"); }));
+["dragleave","drop"].forEach(ev =>
+  drop.addEventListener(ev, e => { e.preventDefault(); drop.classList.remove("hot"); }));
+drop.addEventListener("drop", e => { if (e.dataTransfer.files.length) readFiles(e.dataTransfer.files); });
+window.addEventListener("dragover", e => e.preventDefault());
+window.addEventListener("drop", e => e.preventDefault());
+
+/* 規則表 */
+(function(){
+  const sev = {fatal:0, warn:1, info:2};
+  $("ruleTable").innerHTML = Object.entries(RULES)
+    .sort((a,b)=> sev[a[1].sev]-sev[b[1].sev] || a[0].localeCompare(b[0]))
+    .map(([id,R]) =>
+      `<tr><td class="sv s-${R.sev}">${SEVNAME[R.sev]}</td>` +
+      `<td>${esc(R.title)}</td><td>${esc(R.impact)}</td></tr>`).join("");
+})();
+
+/* 深淺色 */
+(function(){
+  let t = null;
+  try { t = localStorage.getItem("lcv-theme"); } catch(e){}
+  if (t) document.documentElement.setAttribute("data-theme", t);
+  $("themeBtn").addEventListener("click", () => {
+    const cur = document.documentElement.getAttribute("data-theme");
+    const dark = cur ? cur === "dark" : window.matchMedia("(prefers-color-scheme: dark)").matches;
+    const next = dark ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", next);
+    try { localStorage.setItem("lcv-theme", next); } catch(e){}
+  });
+})();
+</script>
+</body>
+</html>
