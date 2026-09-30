@@ -197,7 +197,7 @@ table.rules tr:last-child td{border-bottom:0}
 
 <header class="top">
   <h1>Log CPK Validator</h1>
-  <span class="ver">v1.3</span>
+  <span class="ver">v1.4</span>
   <div class="topright">
     <div class="langbtns" id="langBtns">
       <button type="button" data-lang="zh">中文</button>
@@ -267,7 +267,7 @@ zh:{
     pasteSummary:"或直接貼上 log 內容",
     pastePlaceholder:"把 log 內容複製貼在這裡…",
     checkPaste:"檢查這段 log",
-    rulerefSummary:"這個網頁會檢查什麼（15 項）",
+    rulerefSummary:"這個網頁會檢查什麼（16 項）",
     thSev:"嚴重度", thProb:"問題", thImpact:"為什麼會跑不出 CPK",
     alertPaste:"請先貼上 log 內容。", pastedName:"（貼上的內容）",
     export:"⬇ 一鍵匯出 Excel",
@@ -318,7 +318,8 @@ zh:{
     cols:"此列 {n} 欄，應為 7 欄", badHead:"表頭與預期不符",
     margin:"項目「{item}」不在清單內（{mode} 模式，可用 {list}）",
     modeB:"802.11b", modeNonB:"非 802.11b",
-    multiVer:"出現 {n} 種 MT VER：{list}", fewFiles:"只檢查了 {n} 份"
+    multiVer:"出現 {n} 種 MT VER：{list}", fewFiles:"只檢查了 {n} 份",
+    btHead:"標題「{item}」不在工具認得的四種寫法內"
   },
   xl:{
     header:["檔案名稱","這個檔案","這一項","問題","行號","該行內容","影響","建議做法",
@@ -385,7 +386,11 @@ zh:{
     R13:{title:"log 份數不足",
       problem:"CPK 是統計數字，至少需 2 台 DUT 的 log。",
       impact:"資料不足，不產出 CPK",
-      fix:"多收集幾份 log 再一起檢查。"}
+      fix:"多收集幾份 log 再一起檢查。"},
+    R16:{title:"BT 區塊標題不支援",
+      problem:"這是 BT 測項區塊的標題，但不符合工具認得的四種寫法。",
+      impact:"解析 BT 區塊時遇到不認得的標題 → 立刻停住，跑不出 CPK",
+      fix:"確認 BT 區塊標題格式，或需更新工具的支援清單。"}
   }
 },
 
@@ -403,7 +408,7 @@ en:{
     pasteSummary:"Or paste log content directly",
     pastePlaceholder:"Paste the log content here…",
     checkPaste:"Check this log",
-    rulerefSummary:"What this page checks (15 items)",
+    rulerefSummary:"What this page checks (16 items)",
     thSev:"Severity", thProb:"Problem", thImpact:"Why CPK fails",
     alertPaste:"Please paste the log content first.", pastedName:"(pasted content)",
     export:"⬇ Export Excel",
@@ -455,7 +460,8 @@ en:{
     cols:"This row has {n} columns, should be 7", badHead:"Header does not match what is expected",
     margin:'Item "{item}" is not on the list ({mode} mode, available {list})',
     modeB:"802.11b", modeNonB:"non-802.11b",
-    multiVer:"{n} different MT VER values found: {list}", fewFiles:"Only {n} file(s) checked"
+    multiVer:"{n} different MT VER values found: {list}", fewFiles:"Only {n} file(s) checked",
+    btHead:'Header "{item}" is not one of the four forms the tool recognises'
   },
   xl:{
     header:["File name","This file","This item","Problem","Line","Line content","Impact","What to do",
@@ -522,7 +528,11 @@ en:{
     R13:{title:"Not enough log files",
       problem:"CPK is a statistic; at least 2 DUT logs are needed.",
       impact:"Not enough data, no CPK produced",
-      fix:"Collect a few more logs and check them together."}
+      fix:"Collect a few more logs and check them together."},
+    R16:{title:"BT block header not supported",
+      problem:"This is a BT test block header, but it does not match any of the four forms the tool recognises.",
+      impact:"The BT parser hits a header it does not know \u2192 halts immediately, no CPK",
+      fix:"Check the BT block header format, or the tool's supported list needs updating."}
   }
 },
 
@@ -540,7 +550,7 @@ vi:{
     pasteSummary:"Hoặc dán trực tiếp nội dung log",
     pastePlaceholder:"Dán nội dung log vào đây…",
     checkPaste:"Kiểm tra đoạn log này",
-    rulerefSummary:"Trang này kiểm tra những gì (15 mục)",
+    rulerefSummary:"Trang này kiểm tra những gì (16 mục)",
     thSev:"Mức độ", thProb:"Vấn đề", thImpact:"Vì sao không ra được CPK",
     alertPaste:"Vui lòng dán nội dung log trước.", pastedName:"(Nội dung đã dán)",
     export:"⬇ Xuất Excel",
@@ -592,7 +602,8 @@ vi:{
     cols:"Dòng này có {n} cột, phải là 7 cột", badHead:"Phần đầu bảng không khớp mong đợi",
     margin:'Hạng mục "{item}" không có trong danh sách (chế độ {mode}, khả dụng {list})',
     modeB:"802.11b", modeNonB:"không phải 802.11b",
-    multiVer:"Xuất hiện {n} loại MT VER: {list}", fewFiles:"Chỉ kiểm tra {n} tệp"
+    multiVer:"Xuất hiện {n} loại MT VER: {list}", fewFiles:"Chỉ kiểm tra {n} tệp",
+    btHead:'Tiêu đề "{item}" không thuộc bốn dạng công cụ nhận biết được'
   },
   xl:{
     header:["Tên tệp","Tệp này","Mục này","Vấn đề","Dòng","Nội dung dòng","Ảnh hưởng","Cách xử lý",
@@ -659,7 +670,11 @@ vi:{
     R13:{title:"Không đủ số lượng log",
       problem:"CPK là số liệu thống kê, cần ít nhất log của 2 DUT.",
       impact:"Không đủ dữ liệu, không ra CPK",
-      fix:"Thu thập thêm vài log rồi kiểm tra cùng nhau."}
+      fix:"Thu thập thêm vài log rồi kiểm tra cùng nhau."},
+    R16:{title:"Tiêu đề khối BT không được hỗ trợ",
+      problem:"Đây là tiêu đề khối hạng mục BT, nhưng không khớp với bốn dạng công cụ nhận biết được.",
+      impact:"Bộ phân tích BT gặp tiêu đề không nhận ra \u2192 dừng ngay, không ra CPK",
+      fix:"Kiểm tra định dạng tiêu đề khối BT, hoặc cần cập nhật danh sách hỗ trợ của công cụ."}
   }
 }
 
@@ -682,7 +697,8 @@ const RULES = {
   R01:{sev:"fatal"}, R02:{sev:"fatal"}, R03:{sev:"fatal"}, R04:{sev:"fatal"},
   R05:{sev:"fatal"}, R15:{sev:"warn"},  R06:{sev:"fatal"}, R07:{sev:"fatal"},
   R08:{sev:"warn"},  R09:{sev:"warn"},  R10:{sev:"warn"},  R11:{sev:"fatal"},
-  R14:{sev:"warn"},  R12:{sev:"info"},  R13:{sev:"info"}
+  R14:{sev:"warn"},  R12:{sev:"info"},  R13:{sev:"info"},
+  R16:{sev:"fatal"}
 };
 
 /* ═══════════════════════ 還原工具的字串處理 ═══════════════════════ */
@@ -713,6 +729,21 @@ const NRLTE_HEAD = "Index,TestItem,Unit,MeasureValue,LowerLimit,UpperLimit,TestR
 const MARGIN_11B    = ["MARGIN_DB_LO_A_VSA","MARGIN_DB_LO_B_VSA","MARGIN_DB_UP_A_VSA","MARGIN_DB_UP_B_VSA"];
 const MARGIN_NON11B = MARGIN_11B.concat(
   ["MARGIN_DB_LO_C_VSA","MARGIN_DB_LO_D_VSA","MARGIN_DB_UP_C_VSA","MARGIN_DB_UP_D_VSA"]);
+/* bt_parse_records 認得的四種標題（對照原始碼 L1479/1604/1670/1758）*/
+const BT_HANDLED = ["BT_TX_BDR","BT_TX_EDR","BT_RX_BER","BT_TX_LE","BT_RX_LE"];
+function btHandled(s, format){
+  if (format === "NI") return true;                       // NI 分支全包
+  if (NI_HEADS.some(h => s.includes(h))) return true;     // 這行本身就會把格式設成 NI
+  if (/\.(TX_LE|RX_LE|TX_BDR|TX_EDR)/.test(s)) return true;
+  if (s.includes("WT_VERIFY_BT_")) return true;
+  return BT_HANDLED.some(t => s.includes(t));
+}
+/* 取標題內容（去掉時間戳），過長截斷 */
+function headText(s){
+  const t = hasTS(s) ? s.slice(20) : s;
+  return t.length > 48 ? t.slice(0, 48) + "…" : t;
+}
+
 const isNormalised = n => /MARGIN_DB_LO_|MARGIN_DB_UP_|SYMBOL_CLK_ERR_ALL|SYMBOL_CLOCK_ERR|VIOLATION_PERCENT/.test(n);
 const isInterested = n =>
   /EVM_AVG_|EVM_DB_AVG|EVM_DB_ALL/.test(n) ||
@@ -799,6 +830,9 @@ function analyze(text, name){
       if (s.includes(NRLTE_HEAD)){ checkNRLTE(raw, i, s, add); continue; }
       if (isWifi || isBT){
         if (s.includes("sec") || s.includes(" s")) continue;
+        // bt_parse_records 只處理四種標題；其餘一律 exit(1)（原始碼 L1879）
+        if (isBT && !btHandled(s, info.format))
+          add("R16", i+1, {k:"btHead", item:headText(s)}, {dedup:"bthead"});
         inSec = true; secStart = i; secKind = isBT ? "BT" : "WiFi"; info.sections++;
       }
       continue;
@@ -895,10 +929,13 @@ function checkMeasureLine(raw, i, s, secKind, info, add, st){
     if (!isNormalised(itemName) && !lo && !hi) return;
 
     if (secKind === "BT"){
-      if (meas === "" || badNumber(meas) || badNumber(lo) || badNumber(hi)){
+      if (meas === ""){
+        // update_test_result 對空值的 exit(1) 是啟用的（原始碼 L291）→ 致命
+        add("R04", ln, {k:"noMeas", what:itemName}, {dedup:"empty"});
+      } else if (badNumber(meas) || badNumber(lo) || badNumber(hi)){
+        // 非數字的 exit(1) 已被註解掉（L286）→ 只會跳過該測項
         const b = [];
-        if (meas === "") b.push({k:"emptyVal"});
-        else if (badNumber(meas)) b.push({k:"valMeas", v:meas});
+        if (badNumber(meas)) b.push({k:"valMeas", v:meas});
         if (badNumber(lo)) b.push({k:"valLsl", v:lo});
         if (badNumber(hi)) b.push({k:"valUsl", v:hi});
         add("R14", ln, {k:"btJoin", item:itemName, parts:b}, {dedup:"bt"});
