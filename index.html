@@ -46,7 +46,7 @@ header.top h1{font-size:22px;margin:0;letter-spacing:-.01em}
 .ver{font-family:var(--mono);font-size:12px;color:var(--ink-2);border:1px solid var(--line);border-radius:999px;padding:2px 9px}
 .sub{color:var(--ink-2);font-size:13.5px;margin:2px 0 22px}
 .sub code{font-family:var(--mono);font-size:12.5px;background:var(--panel-2);border:1px solid var(--line-2);border-radius:4px;padding:1px 5px}
-.themebtn{margin-left:auto;background:var(--panel);color:var(--ink-2);border:1px solid var(--line);border-radius:7px;padding:5px 11px;font-size:12.5px;cursor:pointer;font-family:var(--sans)}
+.themebtn{background:var(--panel);color:var(--ink-2);border:1px solid var(--line);border-radius:7px;padding:5px 11px;font-size:12.5px;cursor:pointer;font-family:var(--sans)}
 .themebtn:hover{color:var(--ink);border-color:var(--ink-2)}
 
 .drop{background:var(--panel);border:1.5px dashed var(--line);border-radius:12px;padding:26px 20px;text-align:center;transition:border-color .15s,background .15s}
@@ -177,6 +177,19 @@ table.rules tr:last-child td{border-bottom:0}
   .qa{grid-template-columns:1fr;gap:3px}
   .qa .ql{text-align:left}
 }
+
+/* 右上角：語言 + 深淺色 */
+.topright{margin-left:auto;display:flex;gap:9px;align-items:center;flex-wrap:wrap}
+.langbtns{display:flex;border:1px solid var(--line);border-radius:7px;overflow:hidden}
+.langbtns button{background:var(--panel);color:var(--ink-2);border:0;border-left:1px solid var(--line);
+  padding:5px 11px;font-size:12.5px;cursor:pointer;font-family:var(--sans);white-space:nowrap}
+.langbtns button:first-child{border-left:0}
+.langbtns button:hover{color:var(--ink);background:var(--panel-2)}
+.langbtns button.on{background:var(--accent);color:#fff;font-weight:700}
+@media (max-width:560px){
+  .topright{width:100%;margin-left:0}
+  .langbtns button{padding:5px 9px;font-size:12px}
+}
 </style>
 </head>
 <body>
@@ -184,29 +197,33 @@ table.rules tr:last-child td{border-bottom:0}
 
 <header class="top">
   <h1>Log CPK Validator</h1>
-  <span class="ver">v1.2</span>
-  <button class="themebtn" id="themeBtn" type="button">切換深／淺色</button>
+  <span class="ver">v1.3</span>
+  <div class="topright">
+    <div class="langbtns" id="langBtns">
+      <button type="button" data-lang="zh">中文</button>
+      <button type="button" data-lang="en">English</button>
+      <button type="button" data-lang="vi">Tiếng Việt</button>
+    </div>
+    <button class="themebtn" id="themeBtn" type="button"></button>
+  </div>
 </header>
-<p class="sub">
-  檢查產線測試 log 能不能跑出 CPK。合格顯示 <strong>OK</strong>，不合格顯示 <strong>NG</strong> 並告訴你問題在第幾行。
-  log 只在這台電腦的瀏覽器裡檢查，<strong>不會上傳到任何地方</strong>。
-</p>
+<p class="sub" id="subText"></p>
 
 <div class="drop" id="drop">
-  <p>把 <code>.log</code> 檔拖到這裡（可以一次拖很多個），或</p>
+  <p id="dropHint"></p>
   <div class="btnrow">
-    <label class="filebtn" for="fileInput">選擇 log 檔…</label>
+    <label class="filebtn" for="fileInput" id="pickLabel"></label>
     <input type="file" id="fileInput" multiple accept=".log,.LOG,.txt">
-    <button class="ghost" type="button" id="clearBtn">清除結果</button>
+    <button class="ghost" type="button" id="clearBtn"></button>
   </div>
 </div>
 
 <details class="paste">
-  <summary>或直接貼上 log 內容</summary>
+  <summary id="pasteSummary"></summary>
   <div class="pastebody">
-    <textarea id="pasteBox" placeholder="把 log 內容複製貼在這裡…" spellcheck="false"></textarea>
+    <textarea id="pasteBox" spellcheck="false"></textarea>
     <div class="btnrow" style="justify-content:flex-start;margin-top:11px">
-      <button class="primary" type="button" id="checkPaste">檢查這段 log</button>
+      <button class="primary" type="button" id="checkPaste"></button>
     </div>
   </div>
 </details>
@@ -214,10 +231,10 @@ table.rules tr:last-child td{border-bottom:0}
 <div id="results"></div>
 
 <details class="ruleref">
-  <summary>這個網頁會檢查什麼（15 項）</summary>
+  <summary id="rulerefSummary"></summary>
   <div class="rulebody">
     <table class="rules"><thead><tr>
-      <th style="width:86px">嚴重度</th><th style="width:26%">問題</th><th>為什麼會跑不出 CPK</th>
+      <th style="width:86px" id="thSev"></th><th style="width:26%" id="thProb"></th><th id="thImpact"></th>
     </tr></thead><tbody id="ruleTable"></tbody></table>
   </div>
 </details>
@@ -227,88 +244,446 @@ table.rules tr:last-child td{border-bottom:0}
 <script>
 "use strict";
 
-/* ═══════════════════════ 規則定義 ═══════════════════════
-   每條規則四個欄位：title（問題名稱）／problem（是什麼狀況）／
-   impact（為什麼會跑不出 CPK）／fix（怎麼處理）                          */
-const RULES = {
-  R01:{sev:"fatal", title:"缺開頭日期時間",
-    problem:"開頭應為「2026/09/14 10:18:15」格式的日期時間，後接空格或 TAB，此行沒有。",
-    impact:"讀錯位置、抓到亂碼 → 程式停住，跑不出 CPK",
-    fix:"讓 log 這些行補上開頭的日期時間。"},
+/* ═══════════════════════ 語言包 ═══════════════════════
+   所有文字集中在這裡，程式邏輯完全不碰文字。
+   要修用詞只要改這一區，不用動下面的判定程式。
 
-  R02:{sev:"fatal", title:"認不出 log 格式",
-    problem:"找不到任何工具用來判斷格式的標記。",
-    impact:"不知道該用哪套規則 → 直接結束，沒有產出",
-    fix:"若 MT 換了新測試工具，需更新工具的格式支援。"},
+   注意：越南文尚未經母語人士校訂，技術用詞可能不是當地工程師
+   習慣的說法。若之後有人能校，改 vi 區塊即可。            */
 
-  R03:{sev:"fatal", title:"量測值含非數字字元",
-    problem:"量測值與上下限只能含數字、小數點、負號，此行有其他字元。",
-    impact:"數值不合法 → 立刻停住，跑不出 CPK",
-    fix:"檢查測試程式輸出設定，或確認 log 是否被人為改過。"},
+const I18N = {
 
-  R04:{sev:"fatal", title:"量測值為空",
-    problem:"有項目名稱，但抓不到量測值。",
-    impact:"沒有數值可用 → 立刻停住",
-    fix:"確認測試有跑完，或該行是否被截斷。"},
+/* ───────────────── 繁體中文 ───────────────── */
+zh:{
+  label:"中文", htmlLang:"zh-Hant",
+  sev:{fatal:"不合格", warn:"注意", info:"參考"},
+  verd:{NG:"不合格", WARN:"注意", OK:"合格"},
+  fmtUnknown:"認不出來",
+  ui:{
+    sub:'檢查產線測試 log 能不能跑出 CPK。合格顯示 <strong>OK</strong>，不合格顯示 <strong>NG</strong> 並告訴你問題在第幾行。log 只在這台電腦的瀏覽器裡檢查，<strong>不會上傳到任何地方</strong>。',
+    theme:"切換深／淺色",
+    dropHint:'把 <code>.log</code> 檔拖到這裡（可以一次拖很多個），或',
+    pick:"選擇 log 檔…", clear:"清除結果",
+    pasteSummary:"或直接貼上 log 內容",
+    pastePlaceholder:"把 log 內容複製貼在這裡…",
+    checkPaste:"檢查這段 log",
+    rulerefSummary:"這個網頁會檢查什麼（15 項）",
+    thSev:"嚴重度", thProb:"問題", thImpact:"為什麼會跑不出 CPK",
+    alertPaste:"請先貼上 log 內容。", pastedName:"（貼上的內容）",
+    export:"⬇ 一鍵匯出 Excel",
+    expandAll:"全部展開", collapseAll:"一鍵收合",
+    hintOpen:"點擊查看詳細內容",
+    qProblem:"問題", qImpact:"影響", qFix:"怎麼辦",
+    atLine:"第 {n} 行", wholeFile:"整份檔案",
+    noProblem:"沒有問題", lineColon:"第 {n} 行：", times:"（共 {n} 處）",
+    secEachFile:"每個檔案的結果", secCount:"共 {n} 份",
+    secDetails:"各檔詳細內容", secFileInfo:"檔案資訊",
+    secResult:"檢查結果", secResultCount:"{n} 項", secBatch:"整批一起看",
+    pillNG:"✗ 不合格 {n}", pillWarn:"！注意 {n}", pillOK:"✓ 合格 {n}",
+    emptyAll:"✓ 沒有發現任何問題，所有檢查都通過。",
+    emptyOne:"✓ 這份檔案沒有問題。",
+    hNG:"這份 log 跑不出 CPK",
+    hWARN:"這份 log 可以跑，但有地方要注意",
+    hOK:"這份 log 合格",
+    dNG:"下面會告訴你問題在第幾行。",
+    dWARN:"沒有致命問題，CPK 應該產得出來，但下面幾點可能讓某些測項漏掉。",
+    dOK:"log2cpk2 v1.29 應該可以正常導出 CPK。",
+    mainReason:"主要原因：{title}（共 {n} 處）。",
+    multiHead:"{n} 份 log：",
+    mNG:"{n} 份不合格", mWARN:"{n} 份要注意", mOK:"{n} 份合格",
+    listSep:"、",
+    dMultiNG:"只要有一份不合格，整批就跑不出正確的 CPK。",
+    dMultiWarn:"沒有不合格的檔案，CPK 應該產得出來，但有幾點要注意。",
+    dMultiOK:"全部合格，可以正常導出 CPK。",
+    batch:'<b>注意整批會被拖垮：</b>工具是照<b>檔名順序</b>一份一份讀，讀到第一個不合格的檔案就會停住 —— 排在它<b>後面</b>的檔案完全不會被處理，而且最後計算 CPK 的步驟也不會執行。所以就算有 {good} 份是好的，也不能直接跑。建議先把不合格的 {bad} 份修好或移走，再整批重跑。',
+    cellFormat:"log 格式", cellModel:"機種 MODEL", cellWsid:"站別 WS ID",
+    cellSn:"序號 SN", cellPc:"測試電腦", cellMtver:"MT 版本",
+    cellSections:"測項區塊數", cellItems:"預估 CPK 測項",
+    cellPass:"通過標記", cellLines:"總行數", yes:"有", no:"沒有",
+    parenL:"（", parenR:"）", sepColon:"："
+  },
+  msg:{
+    len:"共 {n} 個字，超過上限(255)",
+    nofmt:"找不到可辨識的格式標記",
+    missing:"缺少：{list}",
+    nopass:"找不到 @@@P A S S",
+    unterm:"第 {a} 行起這段，到第 {b} 行出現下一段時仍未收尾",
+    untermEof:"第 {a} 行起這段讀到檔尾仍未收尾，後面內容全部讀不到",
+    noLParen:"有 ) 卻沒有 (",
+    rxper:"RX PER 量測行", perParen:"PER 行括號不成對", measline:"量測資料行",
+    noRParen:"測項「{item}」沒有 ) 收尾", nipar:"NI 限值宣告行",
+    emptyVal:"量測值為空",
+    valMeas:"量測值「{v}」", valLsl:"下限「{v}」", valUsl:"上限「{v}」",
+    btJoin:"{item}：{list}", noMeas:"{what} 抓不到量測值",
+    cols:"此列 {n} 欄，應為 7 欄", badHead:"表頭與預期不符",
+    margin:"項目「{item}」不在清單內（{mode} 模式，可用 {list}）",
+    modeB:"802.11b", modeNonB:"非 802.11b",
+    multiVer:"出現 {n} 種 MT VER：{list}", fewFiles:"只檢查了 {n} 份"
+  },
+  xl:{
+    header:["檔案名稱","這個檔案","這一項","問題","行號","該行內容","影響","建議做法",
+            "機種","站別","序號","MT版本"],
+    sheet:"檢查結果", pass:"合格", noProblem:"沒有問題", file:"log檢查結果"
+  },
+  rules:{
+    R01:{title:"缺開頭日期時間",
+      problem:"開頭應為「2026/09/14 10:18:15」格式的日期時間，後接空格或 TAB，此行沒有。",
+      impact:"讀錯位置、抓到亂碼 → 程式停住，跑不出 CPK",
+      fix:"讓 log 這些行補上開頭的日期時間。"},
+    R02:{title:"認不出 log 格式",
+      problem:"找不到任何工具用來判斷格式的標記。",
+      impact:"不知道該用哪套規則 → 直接結束，沒有產出",
+      fix:"若 MT 換了新測試工具，需更新工具的格式支援。"},
+    R03:{title:"量測值含非數字字元",
+      problem:"量測值與上下限只能含數字、小數點、負號，此行有其他字元。",
+      impact:"數值不合法 → 立刻停住，跑不出 CPK",
+      fix:"檢查測試程式輸出設定，或確認 log 是否被人為改過。"},
+    R04:{title:"量測值為空",
+      problem:"有項目名稱，但抓不到量測值。",
+      impact:"沒有數值可用 → 立刻停住",
+      fix:"確認測試有跑完，或該行是否被截斷。"},
+    R05:{title:"上下限缺左括號",
+      problem:"上下限應為「( 下限 , 上限 )」，此行有 ) 卻沒有 (。",
+      impact:"找不到左括號 → 程式當掉關閉",
+      fix:"確認限值格式完整，通常是輸出被截斷。"},
+    R15:{title:"上下限缺右括號",
+      problem:"此行上下限沒有用 ) 收尾。工具靠 ) 判斷是否為測項。",
+      impact:"不會當掉，但這個測項不算進 CPK",
+      fix:"確認限值格式是否完整。"},
+    R06:{title:"測項區塊缺結束行",
+      problem:"每段測項結束需有一行收尾（如 Test Time: 0.75 sec），此段沒有。",
+      impact:"後面測項和通過標記全被吃掉 → 沒有產出",
+      fix:"確認測試沒中途中斷，或 log 是否被剪貼過。"},
+    R07:{title:"缺結尾通過標記",
+      problem:"找不到代表 DUT 測試通過的標記。",
+      impact:"沒有這個標記就不寫檔 → 跑不出 CPK",
+      fix:"FAIL 的 log 本就沒有。若應為 PASS，確認測試是否跑完。"},
+    R08:{title:"行過長",
+      problem:"此行超過 255 個字，工具一次只能讀 255 個字。",
+      impact:"被切成兩段讀，工具回報的行號會對不上",
+      fix:"通常是校正資料的長行，可不理會。"},
+    R09:{title:"表頭缺欄位",
+      problem:"表頭應有 MODEL、WS ID、SN、TEST PC、MT VER，缺了其中幾個。",
+      impact:"CPK 跑得出來，但檔名會錯、SN 會空白",
+      fix:"確認測試程式的表頭設定完整。"},
+    R10:{title:"LTE／NR 表格欄數不符",
+      problem:"LTE／NR 測項每列須為 7 欄，此處欄數不符。",
+      impact:"整段 LTE／NR 被跳過，這部分沒有 CPK",
+      fix:"確認輸出的表格欄位完整。"},
+    R11:{title:"MARGIN_DB 項目名稱不支援",
+      problem:"工具只認固定幾個名稱：11b 收 A、B；其他模式收 A、B、C、D。此處為清單外名稱。",
+      impact:"遇到不認得的名稱 → 立刻停住，跑不出 CPK",
+      fix:"若 MT 啟用新頻寬或調變方式，需更新工具的支援清單。"},
+    R14:{title:"量測值非數字",
+      problem:"BT／LTE／APOLLO 測項的量測值或上下限含非數字字元。",
+      impact:"CPK 照樣產出，但這個測項永久消失",
+      fix:"檢查該行輸出格式。CPK 少項目時優先查這裡。"},
+    R12:{title:"MT 版本不一致",
+      problem:"同一次檢查的 log 出現不同 MT VER。",
+      impact:"拆成不同 CPK 檔，每個版本樣本變少",
+      fix:"確認是否混到不同批次。要合併統計可加 nomtv 參數。"},
+    R13:{title:"log 份數不足",
+      problem:"CPK 是統計數字，至少需 2 台 DUT 的 log。",
+      impact:"資料不足，不產出 CPK",
+      fix:"多收集幾份 log 再一起檢查。"}
+  }
+},
 
-  R05:{sev:"fatal", title:"上下限缺左括號",
-    problem:"上下限應為「( 下限 , 上限 )」，此行有 ) 卻沒有 (。",
-    impact:"找不到左括號 → 程式當掉關閉",
-    fix:"確認限值格式完整，通常是輸出被截斷。"},
+/* ───────────────── English ───────────────── */
+en:{
+  label:"English", htmlLang:"en",
+  sev:{fatal:"Fail", warn:"Warning", info:"Note"},
+  verd:{NG:"Fail", WARN:"Warning", OK:"Pass"},
+  fmtUnknown:"Unknown",
+  ui:{
+    sub:'Checks whether a production test log can produce CPK. <strong>OK</strong> means the format is fine; <strong>NG</strong> tells you which line is wrong. Logs are checked in this browser only and are <strong>never uploaded anywhere</strong>.',
+    theme:"Light／dark",
+    dropHint:'Drag <code>.log</code> files here (several at once is fine), or',
+    pick:"Choose log files…", clear:"Clear results",
+    pasteSummary:"Or paste log content directly",
+    pastePlaceholder:"Paste the log content here…",
+    checkPaste:"Check this log",
+    rulerefSummary:"What this page checks (15 items)",
+    thSev:"Severity", thProb:"Problem", thImpact:"Why CPK fails",
+    alertPaste:"Please paste the log content first.", pastedName:"(pasted content)",
+    export:"⬇ Export Excel",
+    expandAll:"Expand all", collapseAll:"Collapse all",
+    hintOpen:"Click for details",
+    qProblem:"Problem", qImpact:"Impact", qFix:"What to do",
+    atLine:"Line {n}", wholeFile:"Whole file",
+    noProblem:"No problem", lineColon:"Line {n}: ", times:" ({n} occurrences)",
+    secEachFile:"Result per file", secCount:"{n} files",
+    secDetails:"Details per file", secFileInfo:"File information",
+    secResult:"Check result", secResultCount:"{n} items", secBatch:"Across the batch",
+    pillNG:"✗ Fail {n}", pillWarn:"！Warning {n}", pillOK:"✓ Pass {n}",
+    emptyAll:"✓ No problems found, all checks passed.",
+    emptyOne:"✓ No problems in this file.",
+    hNG:"This log cannot produce CPK",
+    hWARN:"This log will run, but check a few points",
+    hOK:"This log is fine",
+    dNG:"Below shows which line is wrong.",
+    dWARN:"No fatal problems, CPK should be produced, but the points below may drop some items.",
+    dOK:"log2cpk2 v1.29 should export CPK normally.",
+    mainReason:"Main cause: {title} ({n} occurrences). ",
+    multiHead:"{n} logs: ",
+    mNG:"{n} failed", mWARN:"{n} need attention", mOK:"{n} passed",
+    listSep:", ",
+    dMultiNG:"A single failing file stops the whole batch from producing correct CPK.",
+    dMultiWarn:"No failing files, CPK should be produced, but a few points need attention.",
+    dMultiOK:"All passed, CPK can be exported normally.",
+    batch:'<b>The whole batch is affected:</b> the tool reads files one by one in <b>filename order</b> and stops at the first failing file —— every file <b>after</b> it is not processed at all, and the final CPK calculation never runs. So even with {good} good files you cannot just run it. Fix or move the {bad} failing files first, then rerun the batch.',
+    cellFormat:"Log format", cellModel:"Model", cellWsid:"Station WS ID",
+    cellSn:"Serial SN", cellPc:"Test PC", cellMtver:"MT version",
+    cellSections:"Test blocks", cellItems:"Estimated CPK items",
+    cellPass:"Pass marker", cellLines:"Total lines", yes:"Yes", no:"No",
+    parenL:" (", parenR:")", sepColon:": "
+  },
+  msg:{
+    len:"{n} characters, over the 255 limit",
+    nofmt:"No recognisable format marker found",
+    missing:"Missing: {list}",
+    nopass:"@@@P A S S not found",
+    unterm:"The block from line {a} had not closed by line {b} where the next block starts",
+    untermEof:"The block from line {a} runs to the end of the file without closing; everything after it is unreadable",
+    noLParen:"Has ) but no (",
+    rxper:"RX PER measurement line", perParen:"Brackets on the PER line are not paired",
+    measline:"Measurement line",
+    noRParen:'Item "{item}" does not end with )', nipar:"NI limit declaration line",
+    emptyVal:"measurement is empty",
+    valMeas:'measurement "{v}"', valLsl:'lower limit "{v}"', valUsl:'upper limit "{v}"',
+    btJoin:"{item}: {list}", noMeas:"{what} measurement could not be read",
+    cols:"This row has {n} columns, should be 7", badHead:"Header does not match what is expected",
+    margin:'Item "{item}" is not on the list ({mode} mode, available {list})',
+    modeB:"802.11b", modeNonB:"non-802.11b",
+    multiVer:"{n} different MT VER values found: {list}", fewFiles:"Only {n} file(s) checked"
+  },
+  xl:{
+    header:["File name","This file","This item","Problem","Line","Line content","Impact","What to do",
+            "Model","Station","Serial","MT version"],
+    sheet:"Check result", pass:"Pass", noProblem:"No problem", file:"log_check_result"
+  },
+  rules:{
+    R01:{title:"Missing timestamp prefix",
+      problem:'The line should begin with a timestamp such as "2026/09/14 10:18:15" followed by a space or TAB. This line does not.',
+      impact:"Reads from the wrong position and picks up garbage → the tool halts, no CPK",
+      fix:"Have the log include the timestamp prefix on these lines."},
+    R02:{title:"Log format not recognised",
+      problem:"None of the markers the tool uses to identify the format were found.",
+      impact:"The tool cannot tell which rule set to use → exits immediately, no output",
+      fix:"If MT switched to a new test program, the tool needs format support added."},
+    R03:{title:"Measurement contains non-numeric characters",
+      problem:"Measurements and limits may only contain digits, a decimal point and a minus sign. This line has other characters.",
+      impact:"Invalid number → halts immediately, no CPK",
+      fix:"Check the test program's output settings, or whether the log was edited by hand."},
+    R04:{title:"Measurement is empty",
+      problem:"The item has a name but no measurement could be read.",
+      impact:"No value to use → halts immediately",
+      fix:"Confirm the test ran to completion, or whether the line was truncated."},
+    R05:{title:"Limits missing the opening bracket",
+      problem:'Limits should look like "( lower , upper )". This line has ) but no (.',
+      impact:"Cannot find the opening bracket → the program crashes and closes",
+      fix:"Check that the limit format is complete; usually the output was truncated."},
+    R15:{title:"Limits missing the closing bracket",
+      problem:"The limits on this line do not end with ). The tool uses ) to decide whether a line is a test item.",
+      impact:"No crash, but this item is not counted towards CPK",
+      fix:"Check whether the limit format is complete."},
+    R06:{title:"Test block has no closing line",
+      problem:"Each test block must end with a closing line (such as Test Time: 0.75 sec). This block has none.",
+      impact:"Later items and the pass marker are all swallowed → no output",
+      fix:"Confirm the test was not interrupted, or whether the log was cut and pasted."},
+    R07:{title:"Missing pass marker at the end",
+      problem:"The marker that indicates the DUT passed could not be found.",
+      impact:"Without this marker nothing is written → no CPK",
+      fix:"A FAIL log never has it. If it should be PASS, confirm the test completed."},
+    R08:{title:"Line too long",
+      problem:"This line exceeds 255 characters; the tool can only read 255 characters at a time.",
+      impact:"Read as two pieces, so the line numbers the tool reports will not match",
+      fix:"Usually a long calibration data line and can be ignored."},
+    R09:{title:"Header fields missing",
+      problem:"The header should contain MODEL, WS ID, SN, TEST PC and MT VER. Some are missing.",
+      impact:"CPK still runs, but the output filename is wrong and SN is blank",
+      fix:"Check that the test program's header settings are complete."},
+    R10:{title:"LTE／NR table column count wrong",
+      problem:"Each LTE／NR row must have 7 columns. The count here does not match.",
+      impact:"The whole LTE／NR section is skipped, no CPK for that part",
+      fix:"Check that the output table columns are complete."},
+    R11:{title:"MARGIN_DB item name not supported",
+      problem:"The tool only accepts fixed names: A and B for 11b; A, B, C and D for other modes. This name is not on the list.",
+      impact:"An unrecognised name → halts immediately, no CPK",
+      fix:"If MT enabled a new bandwidth or modulation, the tool's supported list needs updating."},
+    R14:{title:"Measurement is not a number",
+      problem:"A BT／LTE／APOLLO item has a non-numeric measurement or limit.",
+      impact:"CPK is still produced, but this item disappears for good",
+      fix:"Check this line's output format. Look here first when CPK is missing items."},
+    R12:{title:"MT versions do not match",
+      problem:"The logs checked together have different MT VER values.",
+      impact:"Split into separate CPK files, fewer samples per version",
+      fix:"Check whether batches were mixed. Add the nomtv option to merge them."},
+    R13:{title:"Not enough log files",
+      problem:"CPK is a statistic; at least 2 DUT logs are needed.",
+      impact:"Not enough data, no CPK produced",
+      fix:"Collect a few more logs and check them together."}
+  }
+},
 
-  R15:{sev:"warn", title:"上下限缺右括號",
-    problem:"此行上下限沒有用 ) 收尾。工具靠 ) 判斷是否為測項。",
-    impact:"不會當掉，但這個測項不算進 CPK",
-    fix:"確認限值格式是否完整。"},
+/* ───────────────── Tiếng Việt ───────────────── */
+vi:{
+  label:"Tiếng Việt", htmlLang:"vi",
+  sev:{fatal:"Không đạt", warn:"Lưu ý", info:"Tham khảo"},
+  verd:{NG:"Không đạt", WARN:"Lưu ý", OK:"Đạt"},
+  fmtUnknown:"Không rõ",
+  ui:{
+    sub:'Kiểm tra xem log kiểm tra dây chuyền có xuất được CPK không. Đạt thì hiện <strong>OK</strong>, không đạt thì hiện <strong>NG</strong> và cho biết vấn đề ở dòng nào. Log chỉ được phân tích trong trình duyệt trên máy này, <strong>không tải lên bất kỳ đâu</strong>.',
+    theme:"Đổi sáng／tối",
+    dropHint:'Kéo tệp <code>.log</code> vào đây (có thể kéo nhiều tệp cùng lúc), hoặc',
+    pick:"Chọn tệp log…", clear:"Xóa kết quả",
+    pasteSummary:"Hoặc dán trực tiếp nội dung log",
+    pastePlaceholder:"Dán nội dung log vào đây…",
+    checkPaste:"Kiểm tra đoạn log này",
+    rulerefSummary:"Trang này kiểm tra những gì (15 mục)",
+    thSev:"Mức độ", thProb:"Vấn đề", thImpact:"Vì sao không ra được CPK",
+    alertPaste:"Vui lòng dán nội dung log trước.", pastedName:"(Nội dung đã dán)",
+    export:"⬇ Xuất Excel",
+    expandAll:"Mở tất cả", collapseAll:"Thu gọn tất cả",
+    hintOpen:"Bấm để xem chi tiết",
+    qProblem:"Vấn đề", qImpact:"Ảnh hưởng", qFix:"Cách xử lý",
+    atLine:"Dòng {n}", wholeFile:"Toàn bộ tệp",
+    noProblem:"Không có vấn đề", lineColon:"Dòng {n}: ", times:" (tổng {n} chỗ)",
+    secEachFile:"Kết quả từng tệp", secCount:"tổng {n} tệp",
+    secDetails:"Chi tiết từng tệp", secFileInfo:"Thông tin tệp",
+    secResult:"Kết quả kiểm tra", secResultCount:"{n} mục", secBatch:"Xem cả lô",
+    pillNG:"✗ Không đạt {n}", pillWarn:"！Lưu ý {n}", pillOK:"✓ Đạt {n}",
+    emptyAll:"✓ Không phát hiện vấn đề nào, tất cả kiểm tra đều đạt.",
+    emptyOne:"✓ Tệp này không có vấn đề.",
+    hNG:"Log này không xuất được CPK",
+    hWARN:"Log này chạy được, nhưng có điểm cần lưu ý",
+    hOK:"Log này đạt",
+    dNG:"Bên dưới sẽ cho biết vấn đề ở dòng nào.",
+    dWARN:"Không có lỗi nghiêm trọng, CPK vẫn ra được, nhưng vài điểm dưới đây có thể làm thiếu hạng mục.",
+    dOK:"log2cpk2 v1.29 sẽ xuất CPK bình thường.",
+    mainReason:"Nguyên nhân chính: {title} (tổng {n} chỗ). ",
+    multiHead:"{n} tệp log: ",
+    mNG:"{n} không đạt", mWARN:"{n} cần lưu ý", mOK:"{n} đạt",
+    listSep:", ",
+    dMultiNG:"Chỉ cần một tệp không đạt là cả lô sẽ không ra được CPK đúng.",
+    dMultiWarn:"Không có tệp nào không đạt, CPK ra được, nhưng có vài điểm cần lưu ý.",
+    dMultiOK:"Tất cả đều đạt, có thể xuất CPK bình thường.",
+    batch:'<b>Lưu ý cả lô sẽ bị ảnh hưởng:</b> Công cụ đọc lần lượt theo <b>thứ tự tên tệp</b>, gặp tệp không đạt đầu tiên là dừng —— các tệp xếp <b>sau</b> nó hoàn toàn không được xử lý, và bước tính CPK cuối cùng cũng không chạy. Nên dù có {good} tệp tốt, cũng không thể chạy trực tiếp. Nên sửa hoặc chuyển {bad} tệp không đạt ra trước, rồi chạy lại cả lô.',
+    cellFormat:"Định dạng log", cellModel:"Máy MODEL", cellWsid:"Trạm WS ID",
+    cellSn:"Số máy SN", cellPc:"Máy tính kiểm tra", cellMtver:"Phiên bản MT",
+    cellSections:"Số khối hạng mục", cellItems:"CPK dự kiến",
+    cellPass:"Dấu PASS", cellLines:"Tổng số dòng", yes:"Có", no:"Không",
+    parenL:" (", parenR:")", sepColon:": "
+  },
+  msg:{
+    len:"Tổng {n} ký tự, vượt giới hạn (255)",
+    nofmt:"Không tìm thấy dấu hiệu định dạng nhận biết được",
+    missing:"Thiếu: {list}",
+    nopass:"Không tìm thấy @@@P A S S",
+    unterm:"Khối từ dòng {a}, đến dòng {b} đã sang khối mới mà vẫn chưa kết thúc",
+    untermEof:"Khối từ dòng {a} đọc đến cuối tệp vẫn chưa kết thúc, nội dung phía sau không đọc được",
+    noLParen:"Có ) nhưng không có (",
+    rxper:"Dòng đo RX PER", perParen:"Dấu ngoặc dòng PER không thành cặp",
+    measline:"Dòng dữ liệu đo",
+    noRParen:'Hạng mục "{item}" không kết thúc bằng )', nipar:"Dòng khai báo giới hạn NI",
+    emptyVal:"giá trị đo bị trống",
+    valMeas:'giá trị đo "{v}"', valLsl:'giới hạn dưới "{v}"', valUsl:'giới hạn trên "{v}"',
+    btJoin:"{item}: {list}", noMeas:"{what} không đọc được giá trị đo",
+    cols:"Dòng này có {n} cột, phải là 7 cột", badHead:"Phần đầu bảng không khớp mong đợi",
+    margin:'Hạng mục "{item}" không có trong danh sách (chế độ {mode}, khả dụng {list})',
+    modeB:"802.11b", modeNonB:"không phải 802.11b",
+    multiVer:"Xuất hiện {n} loại MT VER: {list}", fewFiles:"Chỉ kiểm tra {n} tệp"
+  },
+  xl:{
+    header:["Tên tệp","Tệp này","Mục này","Vấn đề","Dòng","Nội dung dòng","Ảnh hưởng","Cách xử lý",
+            "Máy","Trạm","Số máy","Phiên bản MT"],
+    sheet:"Ket qua kiem tra", pass:"Đạt", noProblem:"Không có vấn đề", file:"KetQuaKiemTraLog"
+  },
+  rules:{
+    R01:{title:"Thiếu dấu thời gian ở đầu dòng",
+      problem:'Dòng này phải bắt đầu bằng dấu thời gian dạng "2026/09/14 10:18:15", sau đó là dấu cách hoặc TAB. Dòng này không có.',
+      impact:"Đọc sai vị trí, lấy được ký tự rác → chương trình dừng, không ra CPK",
+      fix:"Yêu cầu log thêm dấu thời gian ở đầu các dòng này."},
+    R02:{title:"Không nhận ra định dạng log",
+      problem:"Không tìm thấy dấu hiệu nào để công cụ nhận biết định dạng.",
+      impact:"Không biết dùng bộ quy tắc nào → kết thúc ngay, không có kết quả",
+      fix:"Nếu MT đổi sang công cụ kiểm tra mới, cần cập nhật hỗ trợ định dạng cho công cụ."},
+    R03:{title:"Giá trị đo có ký tự không phải số",
+      problem:"Giá trị đo và giới hạn chỉ được chứa chữ số, dấu thập phân và dấu trừ. Dòng này có ký tự khác.",
+      impact:"Số không hợp lệ → dừng ngay, không ra CPK",
+      fix:"Kiểm tra cài đặt xuất của chương trình kiểm tra, hoặc xem log có bị sửa tay không."},
+    R04:{title:"Giá trị đo bị trống",
+      problem:"Có tên hạng mục nhưng không đọc được giá trị đo.",
+      impact:"Không có giá trị để dùng → dừng ngay",
+      fix:"Xác nhận phép kiểm tra đã chạy xong, hoặc dòng đó có bị cắt ngắn không."},
+    R05:{title:"Giới hạn thiếu dấu ngoặc mở",
+      problem:'Giới hạn phải có dạng "( dưới , trên )". Dòng này có ) nhưng không có (.',
+      impact:"Không tìm được dấu ngoặc mở → chương trình sập và đóng",
+      fix:"Kiểm tra định dạng giới hạn đầy đủ; thường do phần xuất bị cắt ngắn."},
+    R15:{title:"Giới hạn thiếu dấu ngoặc đóng",
+      problem:"Giới hạn ở dòng này không kết thúc bằng ). Công cụ dựa vào ) để xác định đây có phải hạng mục đo không.",
+      impact:"Không sập, nhưng hạng mục này không được tính vào CPK",
+      fix:"Kiểm tra định dạng giới hạn có đầy đủ không."},
+    R06:{title:"Khối hạng mục thiếu dòng kết thúc",
+      problem:"Mỗi khối hạng mục phải có dòng kết thúc (ví dụ Test Time: 0.75 sec). Khối này không có.",
+      impact:"Các hạng mục phía sau và dấu PASS bị ăn hết → không có kết quả",
+      fix:"Xác nhận phép kiểm tra không bị ngắt giữa, hoặc log có bị cắt dán không."},
+    R07:{title:"Thiếu dấu PASS ở cuối log",
+      problem:"Không tìm thấy dấu hiệu cho biết DUT đã kiểm tra đạt.",
+      impact:"Không có dấu này thì không ghi tệp → không ra CPK",
+      fix:"Log FAIL vốn không có. Nếu đáng lẽ là PASS, hãy xác nhận phép kiểm tra đã chạy xong."},
+    R08:{title:"Dòng quá dài",
+      problem:"Dòng này vượt 255 ký tự; công cụ mỗi lần chỉ đọc được 255 ký tự.",
+      impact:"Bị đọc thành hai đoạn, nên số dòng công cụ báo sẽ không khớp",
+      fix:"Thường là dòng dữ liệu hiệu chuẩn dài, có thể bỏ qua."},
+    R09:{title:"Phần đầu log thiếu trường",
+      problem:"Phần đầu phải có MODEL, WS ID, SN, TEST PC và MT VER. Đang thiếu một số trường.",
+      impact:"CPK vẫn chạy được, nhưng tên tệp xuất bị sai và SN để trống",
+      fix:"Kiểm tra cài đặt phần đầu của chương trình kiểm tra đã đầy đủ."},
+    R10:{title:"Số cột bảng LTE／NR không đúng",
+      problem:"Mỗi dòng LTE／NR phải có 7 cột. Số cột ở đây không khớp.",
+      impact:"Toàn bộ phần LTE／NR bị bỏ qua, phần này không có CPK",
+      fix:"Kiểm tra các cột của bảng xuất đã đầy đủ."},
+    R11:{title:"Tên hạng mục MARGIN_DB không được hỗ trợ",
+      problem:"Công cụ chỉ nhận một số tên cố định: 11b nhận A, B; các chế độ khác nhận A, B, C, D. Tên này không có trong danh sách.",
+      impact:"Gặp tên không nhận ra → dừng ngay, không ra CPK",
+      fix:"Nếu MT bật băng thông hoặc điều chế mới, cần cập nhật danh sách hỗ trợ của công cụ."},
+    R14:{title:"Giá trị đo không phải số",
+      problem:"Hạng mục BT／LTE／APOLLO có giá trị đo hoặc giới hạn chứa ký tự không phải số.",
+      impact:"CPK vẫn ra, nhưng hạng mục này mất vĩnh viễn",
+      fix:"Kiểm tra định dạng xuất của dòng này. Khi CPK thiếu hạng mục, hãy xem đây trước."},
+    R12:{title:"Phiên bản MT không thống nhất",
+      problem:"Các log kiểm tra cùng lúc có MT VER khác nhau.",
+      impact:"Bị tách thành các tệp CPK riêng, mỗi phiên bản ít mẫu hơn",
+      fix:"Kiểm tra có lẫn lô khác không. Muốn gộp thống kê thì thêm tham số nomtv."},
+    R13:{title:"Không đủ số lượng log",
+      problem:"CPK là số liệu thống kê, cần ít nhất log của 2 DUT.",
+      impact:"Không đủ dữ liệu, không ra CPK",
+      fix:"Thu thập thêm vài log rồi kiểm tra cùng nhau."}
+  }
+}
 
-  R06:{sev:"fatal", title:"測項區塊缺結束行",
-    problem:"每段測項結束需有一行收尾（如 Test Time: 0.75 sec），此段沒有。",
-    impact:"後面測項和通過標記全被吃掉 → 沒有產出",
-    fix:"確認測試沒中途中斷，或 log 是否被剪貼過。"},
-
-  R07:{sev:"fatal", title:"缺結尾通過標記",
-    problem:"找不到代表 DUT 測試通過的標記。",
-    impact:"沒有這個標記就不寫檔 → 跑不出 CPK",
-    fix:"FAIL 的 log 本就沒有。若應為 PASS，確認測試是否跑完。"},
-
-  R08:{sev:"warn", title:"行過長",
-    problem:"此行超過 255 個字，工具一次只能讀 255 個字。",
-    impact:"被切成兩段讀，工具回報的行號會對不上",
-    fix:"通常是校正資料的長行，可不理會。"},
-
-  R09:{sev:"warn", title:"表頭缺欄位",
-    problem:"表頭應有 MODEL、WS ID、SN、TEST PC、MT VER，缺了其中幾個。",
-    impact:"CPK 跑得出來，但檔名會錯、SN 會空白",
-    fix:"確認測試程式的表頭設定完整。"},
-
-  R10:{sev:"warn", title:"LTE／NR 表格欄數不符",
-    problem:"LTE／NR 測項每列須為 7 欄，此處欄數不符。",
-    impact:"整段 LTE／NR 被跳過，這部分沒有 CPK",
-    fix:"確認輸出的表格欄位完整。"},
-
-  R11:{sev:"fatal", title:"MARGIN_DB 項目名稱不支援",
-    problem:"工具只認固定幾個名稱：11b 收 A、B；其他模式收 A、B、C、D。此處為清單外名稱。",
-    impact:"遇到不認得的名稱 → 立刻停住，跑不出 CPK",
-    fix:"若 MT 啟用新頻寬或調變方式，需更新工具的支援清單。"},
-
-  R14:{sev:"warn", title:"量測值非數字",
-    problem:"BT／LTE／APOLLO 測項的量測值或上下限含非數字字元。",
-    impact:"CPK 照樣產出，但這個測項永久消失",
-    fix:"檢查該行輸出格式。CPK 少項目時優先查這裡。"},
-
-  R12:{sev:"info", title:"MT 版本不一致",
-    problem:"同一次檢查的 log 出現不同 MT VER。",
-    impact:"拆成不同 CPK 檔，每個版本樣本變少",
-    fix:"確認是否混到不同批次。要合併統計可加 nomtv 參數。"},
-
-  R13:{sev:"info", title:"log 份數不足",
-    problem:"CPK 是統計數字，至少需 2 台 DUT 的 log。",
-    impact:"資料不足，不產出 CPK",
-    fix:"多收集幾份 log 再一起檢查。"}
 };
 
-const SEVNAME  = {fatal:"不合格", warn:"注意", info:"參考"};
-const VERDNAME = {NG:"不合格", WARN:"注意", OK:"合格"};
+/* 目前語言 + 取用捷徑 */
+let LANG = "zh";
+const T  = () => I18N[LANG];
+const U  = () => I18N[LANG].ui;
+const M  = () => I18N[LANG].msg;
+const R_ = id => I18N[LANG].rules[id];
+
+/* 把 {key} 換成值 */
+function fmt(tpl, vals){
+  return String(tpl).replace(/\{(\w+)\}/g, (_, k) => (vals && k in vals) ? String(vals[k]) : "{"+k+"}");
+}
+
+/* ═══════════════════════ 規則的嚴重度（與文字分離）═══════════════════════ */
+const RULES = {
+  R01:{sev:"fatal"}, R02:{sev:"fatal"}, R03:{sev:"fatal"}, R04:{sev:"fatal"},
+  R05:{sev:"fatal"}, R15:{sev:"warn"},  R06:{sev:"fatal"}, R07:{sev:"fatal"},
+  R08:{sev:"warn"},  R09:{sev:"warn"},  R10:{sev:"warn"},  R11:{sev:"fatal"},
+  R14:{sev:"warn"},  R12:{sev:"info"},  R13:{sev:"info"}
+};
 
 /* ═══════════════════════ 還原工具的字串處理 ═══════════════════════ */
 const tab2space = s => s.replace(/\t/g, " ");
@@ -320,8 +695,9 @@ const TS = /^\d{4}\/\d{2}\/\d{2} \d{2}:\d{2}:\d{2} /;
 const hasTS = s => TS.test(s);
 const badNumber = s => s.length > 0 && /[^0-9.\-]/.test(s);
 
-const FMT = {UNKNOWN:"認不出來", ATE_SUITE:"ATE_SUITE", ITEST:"iTest",
-             IQRUN:"IQrun_Console", NI:"NI", IQRUN_LTE:"IQrun_Console_LTE"};
+const FMT_NAME = {ATE_SUITE:"ATE_SUITE", ITEST:"iTest",
+                  IQRUN:"IQrun_Console", NI:"NI", IQRUN_LTE:"IQrun_Console_LTE"};
+const fmtName = k => k === "UNKNOWN" ? T().fmtUnknown : (FMT_NAME[k] || k);
 
 const ITEM_TRIGGERS = ["RX_VERIFY_PER","_VERIFY_RX_PER","_VERIFY_INTEL_RX","RX_VERIFY PER",
   "iBF_Calibration","_IMPLICIT_BEAMFORMING_CAL_VER","MTK_iBF_TEST_CMD","TX_MULTI_VERIFICATION",
@@ -344,19 +720,21 @@ const isInterested = n =>
   /VIOLATION_PERCENT|FREQ_ERROR_AVG|SYMBOL_CLK_ERR|SYMBOL_CLOCK_ERR/.test(n) ||
   n === "PER" || isNormalised(n);
 
-/* ═══════════════════════ 分析單一檔案 ═══════════════════════ */
+/* ═══════════════════════ 分析單一檔案 ═══════════════════════
+   findings 只存「訊息代碼 + 參數」，不存成品文字，
+   這樣切換語言時舊結果也能重新翻譯。                        */
 function analyze(text, name){
   const raw = text.split(/\r?\n/);
   if (raw.length && raw[raw.length-1] === "") raw.pop();
 
   const F = [], seen = new Set(), counts = {};
-  function add(id, lineNo, detail, extra){
+  function add(id, lineNo, msg, extra){
     counts[id] = (counts[id]||0) + 1;
     const key = id + "|" + (extra && extra.dedup ? extra.dedup : lineNo);
     if (seen.has(key)) return;
     if ((counts[id] <= 4) || (extra && extra.always)){
       seen.add(key);
-      F.push(Object.assign({id, line:lineNo, detail}, extra||{}));
+      F.push(Object.assign({id, line:lineNo, msg}, extra||{}));
     }
   }
 
@@ -387,11 +765,11 @@ function analyze(text, name){
     if (!info.sn && s.includes("SN = ") && s.includes(";=")){ const v=grab("SN = "); if (v) info.sn = v; }
     if (s.includes("@@@P A S S")) info.pass = true;
     if (raw[i].length > 255)
-      add("R08", i+1, `共 ${raw[i].length} 個字，超過上限(255)`, {dedup:"len"});
+      add("R08", i+1, {k:"len", n:raw[i].length}, {dedup:"len"});
   }
 
   if (info.format === "UNKNOWN")
-    add("R02", 0, "找不到可辨識的格式標記", {always:true, noSnip:true});
+    add("R02", 0, {k:"nofmt"}, {always:true, noSnip:true});
 
   const miss = [];
   if (!info.model)  miss.push("MODEL");
@@ -400,10 +778,10 @@ function analyze(text, name){
   if (!info.testpc) miss.push("TEST PC");
   if (!info.mtver)  miss.push("MT VER");
   if (miss.length)
-    add("R09", 0, "缺少：" + miss.join("、"), {always:true, noSnip:true});
+    add("R09", 0, {k:"missing", parts:miss}, {always:true, noSnip:true});
 
   if (!info.pass)
-    add("R07", 0, "找不到 @@@P A S S", {always:true, noSnip:true});
+    add("R07", 0, {k:"nopass"}, {always:true, noSnip:true});
 
   /* pass 2：走訪測項區塊 */
   let inSec = false, secStart = 0, secKind = "";
@@ -429,8 +807,7 @@ function analyze(text, name){
     if (TERMINATORS.some(t=>s.includes(t))){ inSec = false; continue; }
 
     if (ITEM_TRIGGERS.some(t=>s.includes(t)) && s.includes(".") && !s.includes("Get")){
-      add("R06", secStart+1,
-          `第 ${secStart+1} 行起這段，到第 ${i+1} 行出現下一段時仍未收尾`,
+      add("R06", secStart+1, {k:"unterm", a:secStart+1, b:i+1},
           {dedup:"unterm", endLine:i+1});
       secStart = i; info.sections++;
       continue;
@@ -439,9 +816,7 @@ function analyze(text, name){
   }
 
   if (inSec)
-    add("R06", secStart+1,
-        `第 ${secStart+1} 行起這段讀到檔尾仍未收尾，後面內容全部讀不到`,
-        {always:true, dedup:"eof"});
+    add("R06", secStart+1, {k:"untermEof", a:secStart+1}, {always:true, dedup:"eof"});
 
   const nFatal = F.filter(f=>RULES[f.id].sev==="fatal").length;
   const nWarn  = F.filter(f=>RULES[f.id].sev==="warn").length;
@@ -457,7 +832,7 @@ function checkMeasureLine(raw, i, s, secKind, info, add, st){
   if (s.includes("TX_[")){
     if (!s.includes(")")) return;
     if (!s.includes("(")){
-      add("R05", ln, "有 ) 卻沒有 (", {dedup:"paren"});
+      add("R05", ln, {k:"noLParen"}, {dedup:"paren"});
       return;
     }
     const inner = s.slice(s.indexOf("(")+1, s.lastIndexOf(")"));
@@ -473,11 +848,11 @@ function checkMeasureLine(raw, i, s, secKind, info, add, st){
   /* iTest PER：Pass:/Fail:（定位式，必須有時間戳） */
   if (s.includes("Pass") && s.includes("Fail")){
     if (!ts){
-      add("R01", ln, "RX PER 量測行", {dedup:"per"});
+      add("R01", ln, {k:"rxper"}, {dedup:"per"});
       return;
     }
     if (!s.includes("(") || !s.includes(")")){
-      add("R05", ln, "PER 行括號不成對", {dedup:"paren"});
+      add("R05", ln, {k:"perParen"}, {dedup:"paren"});
       return;
     }
     const p = s.slice(s.indexOf("(")+1, s.lastIndexOf(")")).trim().split(/ +/);
@@ -490,17 +865,17 @@ function checkMeasureLine(raw, i, s, secKind, info, add, st){
   /* IQrun / NI：項目 : 數值 單位 (下限, 上限) */
   if (s.includes(" : ") || /\s:\s*-?[0-9]/.test(s)){
     if (!ts){
-      add("R01", ln, "量測資料行", {dedup:"meas"});
+      add("R01", ln, {k:"measline"}, {dedup:"meas"});
       return;
     }
     const tokens = s.split(" "), itemName = tokens[2] || "";
     const hasL = s.includes("("), hasR = s.includes(")");
     if (hasR && !hasL){
-      add("R05", ln, "有 ) 卻沒有 (", {dedup:"paren"});
+      add("R05", ln, {k:"noLParen"}, {dedup:"paren"});
       return;
     }
     if (hasL && !hasR){
-      add("R15", ln, `測項「${itemName}」沒有 ) 收尾`, {dedup:"noparen"});
+      add("R15", ln, {k:"noRParen", item:itemName}, {dedup:"noparen"});
       return;
     }
     if (!hasL){
@@ -522,11 +897,11 @@ function checkMeasureLine(raw, i, s, secKind, info, add, st){
     if (secKind === "BT"){
       if (meas === "" || badNumber(meas) || badNumber(lo) || badNumber(hi)){
         const b = [];
-        if (meas === "") b.push("量測值為空");
-        else if (badNumber(meas)) b.push(`量測值「${meas}」`);
-        if (badNumber(lo)) b.push(`下限「${lo}」`);
-        if (badNumber(hi)) b.push(`上限「${hi}」`);
-        add("R14", ln, `${itemName}：` + b.join("、"), {dedup:"bt"});
+        if (meas === "") b.push({k:"emptyVal"});
+        else if (badNumber(meas)) b.push({k:"valMeas", v:meas});
+        if (badNumber(lo)) b.push({k:"valLsl", v:lo});
+        if (badNumber(hi)) b.push({k:"valUsl", v:hi});
+        add("R14", ln, {k:"btJoin", item:itemName, parts:b}, {dedup:"bt"});
       } else info.items++;
       return;
     }
@@ -537,9 +912,8 @@ function checkMeasureLine(raw, i, s, secKind, info, add, st){
     if (/MARGIN_DB_(LO|UP)_/.test(itemName)){
       const allow = st.mode11b ? MARGIN_11B : MARGIN_NON11B;
       if (!allow.some(a => itemName.includes(a))){
-        add("R11", ln,
-            `項目「${itemName}」不在清單內（${st.mode11b ? "802.11b" : "非 802.11b"} 模式，` +
-            `可用 ${allow.map(a=>a.replace("MARGIN_DB_","").replace("_VSA","")).join("、")}）`,
+        add("R11", ln, {k:"margin", item:itemName, b11:st.mode11b,
+            list:allow.map(a=>a.replace("MARGIN_DB_","").replace("_VSA",""))},
             {dedup:"margin"});
         return;
       }
@@ -552,7 +926,7 @@ function checkMeasureLine(raw, i, s, secKind, info, add, st){
   }
 
   if (s.includes("[") && s.includes("]") && !ts && secKind)
-    add("R01", ln, "NI 限值宣告行", {dedup:"nipar"});
+    add("R01", ln, {k:"nipar"}, {dedup:"nipar"});
 }
 
 function trimUnit(str){
@@ -564,23 +938,23 @@ function trimUnit(str){
 }
 
 function reportNums(add, ln, meas, lo, hi, what){
-  if (meas === ""){ add("R04", ln, `${what} 抓不到量測值`, {dedup:"empty"}); return; }
+  if (meas === ""){ add("R04", ln, {k:"noMeas", what:what}, {dedup:"empty"}); return; }
   const b = [];
-  if (badNumber(meas)) b.push(`量測值「${meas}」`);
-  if (badNumber(lo))   b.push(`下限「${lo}」`);
-  if (badNumber(hi))   b.push(`上限「${hi}」`);
-  if (b.length) add("R03", ln, b.join("、"), {dedup:"num"});
+  if (badNumber(meas)) b.push({k:"valMeas", v:meas});
+  if (badNumber(lo))   b.push({k:"valLsl", v:lo});
+  if (badNumber(hi))   b.push({k:"valUsl", v:hi});
+  if (b.length) add("R03", ln, {k:"joinOnly", parts:b}, {dedup:"num"});
 }
 
 function checkNRLTE(raw, i, headLine, add){
-  if (!headLine.includes(NRLTE_HEAD)){ add("R10", i+1, "表頭與預期不符", {}); return; }
+  if (!headLine.includes(NRLTE_HEAD)){ add("R10", i+1, {k:"badHead"}, {}); return; }
   for (let j=i+1;j<raw.length;j++){
     const s = norm(raw[j]);
     if (!s || !/^\d{4}\/\d{2}\/\d{2}/.test(s)) break;
     const body = s.slice(20);
     if (!/^[A-Za-z0-9_]*\d+,/.test(body) && !body.includes(",")) break;
     const c = body.split(",").length;
-    if (c !== 7){ add("R10", j+1, `此列 ${c} 欄，應為 7 欄`, {dedup:"nrcols"}); return; }
+    if (c !== 7){ add("R10", j+1, {k:"cols", n:c}, {dedup:"nrcols"}); return; }
   }
 }
 
@@ -588,16 +962,34 @@ function crossCheck(reports){
   const out = [];
   const vers = [...new Set(reports.map(r=>r.info.mtver).filter(Boolean))];
   if (vers.length > 1)
-    out.push({id:"R12", detail:`出現 ${vers.length} 種 MT VER：${vers.join("、")}`});
+    out.push({id:"R12", msg:{k:"multiVer", n:vers.length, parts:vers.map(v=>({lit:v}))}});
   if (!reports.some(r=>r.verdict==="NG") && reports.length < 2)
-    out.push({id:"R13", detail:`只檢查了 ${reports.length} 份`});
+    out.push({id:"R13", msg:{k:"fewFiles", n:reports.length}});
   return out;
+}
+
+/* ═══════════════════════ 把訊息代碼翻成文字 ═══════════════════════ */
+function msgText(m){
+  if (!m) return "";
+  const sep = U().listSep;
+  const one = p => p.lit !== undefined ? p.lit : fmt(M()[p.k], p);
+  const list = m.parts ? m.parts.map(p => typeof p === "string" ? p : one(p)).join(sep) : "";
+  switch (m.k){
+    case "joinOnly": return list;
+    case "missing":  return fmt(M().missing, {list:m.parts.join(sep)});
+    case "btJoin":   return fmt(M().btJoin, {item:m.item, list:list});
+    case "multiVer": return fmt(M().multiVer, {n:m.n, list:list});
+    case "margin":   return fmt(M().margin, {item:m.item,
+                       mode:m.b11 ? M().modeB : M().modeNonB,
+                       list:m.list.join(sep)});
+    default:         return fmt(M()[m.k], m);
+  }
 }
 
 /* ═══════════════════════ 畫面 ═══════════════════════ */
 const esc = s => String(s).replace(/[&<>"]/g, c => ({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
 const $ = id => document.getElementById(id);
-let LAST = null;   // 匯出 CSV 用
+let LAST = null;
 
 function snippet(raw, lineNo, endLine){
   if (!lineNo || !raw) return "";
@@ -613,17 +1005,18 @@ function snippet(raw, lineNo, endLine){
   return `<pre class="snip">${h.replace(/\n$/, "")}</pre>`;
 }
 
-
 function findingHTML(f, raw){
-  const R = RULES[f.id];
-  let h = `<div class="find sev-${R.sev}">`;
-  h += `<div class="fhead"><span class="tag">${SEVNAME[R.sev]}</span>`;
+  const sev = RULES[f.id].sev, R = R_(f.id), u = U();
+  const detail = msgText(f.msg);
+  let h = `<div class="find sev-${sev}">`;
+  h += `<div class="fhead"><span class="tag">${esc(T().sev[sev])}</span>`;
   h += `<span class="ftitle">${esc(R.title)}</span>`;
-  h += `<span class="floc">${f.line ? "第 "+f.line+" 行" : "整份檔案"}</span></div>`;
+  h += `<span class="floc">${esc(f.line ? fmt(u.atLine,{n:f.line}) : u.wholeFile)}</span></div>`;
   h += `<div class="fbody"><div class="qa">`;
-  h += `<span class="ql">問題</span><p class="qv">${esc(R.problem)}${f.detail ? " <span style=\"color:var(--ink-2)\">（"+esc(f.detail)+"）</span>" : ""}</p>`;
-  h += `<span class="ql">影響</span><p class="qv">${esc(R.impact)}</p>`;
-  h += `<span class="ql">怎麼辦</span><p class="qv fix">${esc(R.fix)}</p>`;
+  h += `<span class="ql">${esc(u.qProblem)}</span><p class="qv">${esc(R.problem)}` +
+       (detail ? ` <span style="color:var(--ink-2)">${esc(u.parenL)}${esc(detail)}${esc(u.parenR)}</span>` : "") + `</p>`;
+  h += `<span class="ql">${esc(u.qImpact)}</span><p class="qv">${esc(R.impact)}</p>`;
+  h += `<span class="ql">${esc(u.qFix)}</span><p class="qv fix">${esc(R.fix)}</p>`;
   h += `</div>`;
   if (!f.noSnip) h += snippet(raw, f.line, f.endLine);
   h += `</div></div>`;
@@ -631,34 +1024,36 @@ function findingHTML(f, raw){
 }
 
 function summaryHTML(info){
-  const c = (k,v,dim) => `<div class="cell"><div class="k">${k}</div><div class="v${dim?" dim":""}">${esc(v||"—")}</div></div>`;
+  const u = U();
+  const c = (k,v,dim) => `<div class="cell"><div class="k">${esc(k)}</div><div class="v${dim?" dim":""}">${esc(v||"—")}</div></div>`;
   return `<div class="grid">` +
-    c("log 格式", FMT[info.format]||info.format) + c("機種 MODEL", info.model) +
-    c("站別 WS ID", info.wsid) + c("序號 SN", info.sn) +
-    c("測試電腦", info.testpc) + c("MT 版本", info.mtver) +
-    c("測項區塊數", info.sections) + c("預估 CPK 測項", info.items) +
-    c("通過標記", info.pass ? "有" : "沒有") + c("總行數", info.lines, true) + `</div>`;
+    c(u.cellFormat, fmtName(info.format)) + c(u.cellModel, info.model) +
+    c(u.cellWsid, info.wsid) + c(u.cellSn, info.sn) +
+    c(u.cellPc, info.testpc) + c(u.cellMtver, info.mtver) +
+    c(u.cellSections, info.sections) + c(u.cellItems, info.items) +
+    c(u.cellPass, info.pass ? u.yes : u.no) + c(u.cellLines, info.lines, true) + `</div>`;
 }
 
-/* 每個檔案最主要的那一句話 */
 function oneLiner(r){
-  if (r.verdict === "OK") return "沒有問題";
+  const u = U();
+  if (r.verdict === "OK") return u.noProblem;
   const order = {fatal:0, warn:1, info:2};
   const f = [...r.findings].sort((a,b)=>order[RULES[a.id].sev]-order[RULES[b.id].sev])[0];
-  if (!f) return "沒有問題";
-  const extra = r.counts[f.id] > 1 ? `（共 ${r.counts[f.id]} 處）` : "";
-  return (f.line ? `第 ${f.line} 行：` : "") + RULES[f.id].title + extra;
+  if (!f) return u.noProblem;
+  const extra = r.counts[f.id] > 1 ? fmt(u.times,{n:r.counts[f.id]}) : "";
+  return (f.line ? fmt(u.lineColon,{n:f.line}) : "") + R_(f.id).title + extra;
 }
 
 function overviewHTML(reports){
+  const u = U();
   const ng = reports.filter(r=>r.verdict==="NG");
   const wn = reports.filter(r=>r.verdict==="WARN");
   const ok = reports.filter(r=>r.verdict==="OK");
-  let h = `<h2 class="sec">每個檔案的結果<span class="cnt">共 ${reports.length} 份</span></h2>`;
+  let h = `<h2 class="sec">${esc(u.secEachFile)}<span class="cnt">${esc(fmt(u.secCount,{n:reports.length}))}</span></h2>`;
   h += `<div class="ovtally">`;
-  h += `<span class="tpill ng${ng.length?"":" zero"}">✗ 不合格 ${ng.length}</span>`;
-  h += `<span class="tpill warn${wn.length?"":" zero"}">！注意 ${wn.length}</span>`;
-  h += `<span class="tpill ok${ok.length?"":" zero"}">✓ 合格 ${ok.length}</span>`;
+  h += `<span class="tpill ng${ng.length?"":" zero"}">${esc(fmt(u.pillNG,{n:ng.length}))}</span>`;
+  h += `<span class="tpill warn${wn.length?"":" zero"}">${esc(fmt(u.pillWarn,{n:wn.length}))}</span>`;
+  h += `<span class="tpill ok${ok.length?"":" zero"}">${esc(fmt(u.pillOK,{n:ok.length}))}</span>`;
   h += `</div><table class="ov">`;
   const mark = {NG:"✗", WARN:"!", OK:"✓"}, kls = {NG:"r-ng", WARN:"r-warn", OK:"r-ok"};
   for (const r of ng.concat(wn, ok)){
@@ -673,6 +1068,7 @@ function overviewHTML(reports){
 
 function render(reports){
   LAST = reports;
+  const u = U();
   const box = $("results");
   const cross = crossCheck(reports);
   const ngList = reports.filter(r=>r.verdict==="NG");
@@ -683,7 +1079,6 @@ function render(reports){
   const v = ngList.length ? "NG" : (wnList.length || cross.length ? "WARN" : "OK");
   const cls = v==="NG" ? "ng" : (v==="WARN" ? "warn" : "ok");
 
-  /* 最主要的原因 */
   let mainReason = "";
   if (ngList.length){
     const tally = {};
@@ -691,55 +1086,43 @@ function render(reports){
       if (RULES[f.id].sev==="fatal") tally[f.id] = (tally[f.id]||0) + (r.counts[f.id]||1);
     }));
     const top = Object.entries(tally).sort((a,b)=>b[1]-a[1])[0];
-    if (top) mainReason = `主要原因：${RULES[top[0]].title}（共 ${top[1]} 處）。`;
+    if (top) mainReason = fmt(u.mainReason, {title:R_(top[0]).title, n:top[1]});
   }
 
   let headline, detail;
   if (!multi){
-    const r = reports[0];
-    headline = v==="NG" ? "這份 log 跑不出 CPK"
-             : v==="WARN" ? "這份 log 可以跑，但有地方要注意"
-             : "這份 log 合格";
-    detail = v==="NG" ? mainReason + "下面會告訴你問題在第幾行。"
-           : v==="WARN" ? "沒有致命問題，CPK 應該產得出來，但下面幾點可能讓某些測項漏掉。"
-           : "log2cpk2 v1.29 應該可以正常導出 CPK。";
+    headline = v==="NG" ? u.hNG : (v==="WARN" ? u.hWARN : u.hOK);
+    detail   = v==="NG" ? mainReason + u.dNG : (v==="WARN" ? u.dWARN : u.dOK);
   } else {
-    headline = `${reports.length} 份 log：`
-      + [ngList.length?`${ngList.length} 份不合格`:null,
-          wnList.length?`${wnList.length} 份要注意`:null,
-          okList.length?`${okList.length} 份合格`:null].filter(Boolean).join("、");
-    detail = ngList.length
-      ? mainReason + "只要有一份不合格，整批就跑不出正確的 CPK。"
-      : (wnList.length ? "沒有不合格的檔案，CPK 應該產得出來，但有幾點要注意。"
-                       : "全部合格，可以正常導出 CPK。");
+    headline = fmt(u.multiHead,{n:reports.length})
+      + [ngList.length?fmt(u.mNG,{n:ngList.length}):null,
+          wnList.length?fmt(u.mWARN,{n:wnList.length}):null,
+          okList.length?fmt(u.mOK,{n:okList.length}):null].filter(Boolean).join(u.listSep);
+    detail = ngList.length ? mainReason + u.dMultiNG
+           : (wnList.length ? u.dMultiWarn : u.dMultiOK);
   }
 
   let h = `<div class="verdict ${cls}"><div class="badge">${v}</div>`;
   h += `<div class="vtext"><div class="vh">${esc(headline)}</div><div class="vd">${esc(detail)}</div></div>`;
-  h += `<div class="vact"><button class="export" type="button" id="expBtn">⬇ 一鍵匯出 Excel</button></div>`;
+  h += `<div class="vact"><button class="export" type="button" id="expBtn">${esc(u.export)}</button></div>`;
   h += `</div>`;
 
-  /* 整批會被拖垮的提醒 */
-  if (multi && ngList.length && okList.length + wnList.length > 0){
-    h += `<div class="batchnote"><b>注意整批會被拖垮：</b>`;
-    h += `工具是照<b>檔名順序</b>一份一份讀，讀到第一個不合格的檔案就會停住 —— `;
-    h += `排在它<b>後面</b>的檔案完全不會被處理，而且最後計算 CPK 的步驟也不會執行。`;
-    h += `所以就算有 ${okList.length + wnList.length} 份是好的，也不能直接跑。`;
-    h += `建議先把不合格的 ${ngList.length} 份修好或移走，再整批重跑。</div>`;
-  }
+  if (multi && ngList.length && okList.length + wnList.length > 0)
+    h += `<div class="batchnote">` +
+         fmt(u.batch, {good:okList.length + wnList.length, bad:ngList.length}) + `</div>`;
 
   if (multi) h += overviewHTML(reports);
 
   if (!multi){
     const r = reports[0];
-    h += `<h2 class="sec">檔案資訊<span class="cnt">${esc(r.name)}</span></h2>` + summaryHTML(r.info);
-    h += `<h2 class="sec">檢查結果<span class="cnt">${r.findings.length} 項</span></h2>`;
+    h += `<h2 class="sec">${esc(u.secFileInfo)}<span class="cnt">${esc(r.name)}</span></h2>` + summaryHTML(r.info);
+    h += `<h2 class="sec">${esc(u.secResult)}<span class="cnt">${esc(fmt(u.secResultCount,{n:r.findings.length}))}</span></h2>`;
     h += r.findings.length ? r.findings.map(f=>findingHTML(f, r.raw)).join("")
-                           : `<div class="empty">✓ 沒有發現任何問題，所有檢查都通過。</div>`;
+                           : `<div class="empty">${esc(u.emptyAll)}</div>`;
   } else {
-    h += `<h2 class="sec">各檔詳細內容<span class="cnt">共 ${reports.length} 份</span>`;
+    h += `<h2 class="sec">${esc(u.secDetails)}<span class="cnt">${esc(fmt(u.secCount,{n:reports.length}))}</span>`;
     h += `<span class="secbtns">`;
-    h += `<button class="tiny" type="button" id="toggleAll">全部展開</button>`;
+    h += `<button class="tiny" type="button" id="toggleAll">${esc(u.expandAll)}</button>`;
     h += `</span></h2>`;
     const order = {NG:0, WARN:1, OK:2};
     const sorted = [...reports].sort((a,b)=>order[a.verdict]-order[b.verdict]);
@@ -747,21 +1130,21 @@ function render(reports){
       const i = reports.indexOf(r);
       const mc = r.verdict==="NG" ? "ng" : (r.verdict==="WARN" ? "warn" : "ok");
       h += `<details class="fileblk" id="f${i}">`;
-      h += `<summary><span class="mini ${mc}">${VERDNAME[r.verdict]}</span>`;
+      h += `<summary><span class="mini ${mc}">${esc(T().verd[r.verdict])}</span>`;
       h += `<span class="fname">${esc(r.name)}</span>`;
       h += `<span class="floc">${esc(oneLiner(r))}</span>`;
-      h += `<span class="hint">點擊查看詳細內容</span></summary>`;
+      h += `<span class="hint">${esc(u.hintOpen)}</span></summary>`;
       h += `<div class="fileinner">` + summaryHTML(r.info);
       h += r.findings.length
         ? `<div style="margin-top:14px">` + r.findings.map(f=>findingHTML(f, r.raw)).join("") + `</div>`
-        : `<div class="empty" style="margin-top:14px">✓ 這份檔案沒有問題。</div>`;
+        : `<div class="empty" style="margin-top:14px">${esc(u.emptyOne)}</div>`;
       h += `</div></details>`;
     }
   }
 
   if (cross.length){
-    h += `<h2 class="sec">整批一起看<span class="cnt">${cross.length} 項</span></h2>`;
-    h += cross.map(c=>findingHTML({id:c.id, line:0, detail:c.detail, noSnip:true}, null)).join("");
+    h += `<h2 class="sec">${esc(u.secBatch)}<span class="cnt">${esc(fmt(u.secResultCount,{n:cross.length}))}</span></h2>`;
+    h += cross.map(c=>findingHTML({id:c.id, line:0, msg:c.msg, noSnip:true}, null)).join("");
   }
 
   box.innerHTML = h;
@@ -769,22 +1152,20 @@ function render(reports){
   const eb = $("expBtn");
   if (eb) eb.addEventListener("click", exportXLSX);
 
-  /* 一顆按鈕交替展開／收合全部；文字跟著下一次要做的動作 */
   const tg = $("toggleAll");
   const blocks = () => [...box.querySelectorAll("details.fileblk")];
   function syncLabel(){
     if (!tg) return;
     const bs = blocks();
-    tg.textContent = bs.length && bs.every(d => d.open) ? "一鍵收合" : "全部展開";
+    tg.textContent = bs.length && bs.every(d => d.open) ? U().collapseAll : U().expandAll;
   }
   if (tg){
     tg.addEventListener("click", () => {
       const bs = blocks();
-      const openThem = bs.some(d => !d.open);   // 只要還有收著的就全部展開
+      const openThem = bs.some(d => !d.open);
       bs.forEach(d => { d.open = openThem; });
       syncLabel();
     });
-    // 手動點開／收起個別檔案時，按鈕文字也要跟上
     blocks().forEach(d => d.addEventListener("toggle", syncLabel));
     syncLabel();
   }
@@ -799,26 +1180,26 @@ function render(reports){
 
 /* ═══════════════════════ 匯出 Excel（.xlsx，含底色）═══════════════════════
    不用任何外部套件：xlsx 本質是一包 ZIP 裝 XML，這裡自己組出來，維持離線可用。
-   底色依「這一項」的嚴重度：不合格→淡粉、注意→淡黃、其餘不上色。            */
+   底色依「這一項」的嚴重度：不合格→粉、注意→黃、其餘不上色。              */
 
-const XL_HEADER = ["檔案名稱","這個檔案","這一項","問題","行號","該行內容","影響","建議做法",
-                   "機種","站別","序號","MT版本"];
-const XL_WIDTH  = [40, 10, 8, 46, 7, 58, 44, 44, 20, 9, 14, 11];
+const XL_WIDTH = [40, 10, 8, 46, 7, 58, 44, 44, 20, 9, 14, 11];
 
 function buildRows(reports){
+  const u = U(), xl = T().xl;
   const out = [];
   const vOrder = {NG:0, WARN:1, OK:2}, sOrder = {fatal:0, warn:1, info:2};
   for (const r of [...reports].sort((a,b)=>vOrder[a.verdict]-vOrder[b.verdict])){
     const meta = [r.info.model, r.info.wsid, r.info.sn, r.info.mtver];
     if (!r.findings.length){
-      out.push({sev:null, cells:[r.name, "合格", "", "沒有問題", "", "", "", ""].concat(meta)});
+      out.push({sev:null, cells:[r.name, xl.pass, "", xl.noProblem, "", "", "", ""].concat(meta)});
       continue;
     }
     for (const f of [...r.findings].sort((a,b)=>sOrder[RULES[a.id].sev]-sOrder[RULES[b.id].sev])){
-      const R = RULES[f.id], n = r.counts[f.id] || 1;
-      out.push({sev:R.sev, cells:[
-        r.name, VERDNAME[r.verdict], SEVNAME[R.sev],
-        R.title + (n > 1 ? `（共 ${n} 處）` : "") + (f.detail ? `：${f.detail}` : ""),
+      const sev = RULES[f.id].sev, R = R_(f.id), n = r.counts[f.id] || 1;
+      const detail = msgText(f.msg);
+      out.push({sev:sev, cells:[
+        r.name, T().verd[r.verdict], T().sev[sev],
+        R.title + (n > 1 ? fmt(u.times,{n:n}) : "") + (detail ? u.sepColon+detail : ""),
         f.line || "",
         f.line && r.raw ? (r.raw[f.line-1] || "") : "",
         R.impact, R.fix].concat(meta)});
@@ -857,11 +1238,11 @@ const XL_RELS =
 '<Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="xl/workbook.xml"/>' +
 '</Relationships>';
 
-const XL_WB =
+const xlWorkbook = () =>
 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
 '<workbook xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main" ' +
 'xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships">' +
-'<sheets><sheet name="檢查結果" sheetId="1" r:id="rId1"/></sheets></workbook>';
+'<sheets><sheet name="' + xmlEsc(T().xl.sheet) + '" sheetId="1" r:id="rId1"/></sheets></workbook>';
 
 const XL_WBRELS =
 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
@@ -870,7 +1251,7 @@ const XL_WBRELS =
 '<Relationship Id="rId2" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/styles" Target="styles.xml"/>' +
 '</Relationships>';
 
-/* fill 0/1 是 Excel 保留的，自訂色從 2 開始。色碼與網頁上的一致 */
+/* fill 0/1 是 Excel 保留的，自訂色從 2 開始 */
 const XL_STYLES =
 '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
 '<styleSheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
@@ -897,7 +1278,8 @@ const XL_STYLES =
 
 function sheetXML(rows){
   const STYLE = {fatal:2, warn:3};
-  const last = colRef(XL_HEADER.length - 1);
+  const head = T().xl.header;
+  const last = colRef(head.length - 1);
   let x = '<?xml version="1.0" encoding="UTF-8" standalone="yes"?>' +
     '<worksheet xmlns="http://schemas.openxmlformats.org/spreadsheetml/2006/main">' +
     `<dimension ref="A1:${last}${rows.length + 1}"/>` +
@@ -908,7 +1290,7 @@ function sheetXML(rows){
     x += `<col min="${i+1}" max="${i+1}" width="${w}" customWidth="1"/>`;
   });
   x += '</cols><sheetData>';
-  x += '<row r="1">' + XL_HEADER.map((h, i) =>
+  x += '<row r="1">' + head.map((h, i) =>
     `<c r="${colRef(i)}1" s="1" t="inlineStr"><is><t>${xmlEsc(h)}</t></is></c>`).join("") + '</row>';
   rows.forEach((row, ri) => {
     const rn = ri + 2, s = STYLE[row.sev] || 0;
@@ -975,7 +1357,7 @@ function buildXLSX(reports){
   return zipStore([
     F("[Content_Types].xml",        XL_CT),
     F("_rels/.rels",                XL_RELS),
-    F("xl/workbook.xml",            XL_WB),
+    F("xl/workbook.xml",            xlWorkbook()),
     F("xl/_rels/workbook.xml.rels", XL_WBRELS),
     F("xl/styles.xml",              XL_STYLES),
     F("xl/worksheets/sheet1.xml",   sheetXML(buildRows(reports)))
@@ -990,9 +1372,47 @@ function exportXLSX(){
   const stamp = `${d.getFullYear()}${p(d.getMonth()+1)}${p(d.getDate())}_${p(d.getHours())}${p(d.getMinutes())}`;
   const a = document.createElement("a");
   a.href = URL.createObjectURL(blob);
-  a.download = `log檢查結果_${stamp}.xlsx`;
+  a.download = `${T().xl.file}_${stamp}.xlsx`;
   document.body.appendChild(a); a.click();
   setTimeout(() => { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+}
+
+/* ═══════════════════════ 靜態文字與語言切換 ═══════════════════════ */
+function buildRuleTable(){
+  const sev = {fatal:0, warn:1, info:2};
+  $("ruleTable").innerHTML = Object.entries(RULES)
+    .sort((a,b)=> sev[a[1].sev]-sev[b[1].sev] || a[0].localeCompare(b[0]))
+    .map(([id,R]) =>
+      `<tr><td class="sv s-${R.sev}">${esc(T().sev[R.sev])}</td>` +
+      `<td>${esc(R_(id).title)}</td><td>${esc(R_(id).impact)}</td></tr>`).join("");
+}
+
+function applyStaticText(){
+  const u = U();
+  document.documentElement.setAttribute("lang", T().htmlLang);
+  $("subText").innerHTML         = u.sub;
+  $("themeBtn").textContent      = u.theme;
+  $("dropHint").innerHTML        = u.dropHint;
+  $("pickLabel").textContent     = u.pick;
+  $("clearBtn").textContent      = u.clear;
+  $("pasteSummary").textContent  = u.pasteSummary;
+  $("pasteBox").placeholder      = u.pastePlaceholder;
+  $("checkPaste").textContent    = u.checkPaste;
+  $("rulerefSummary").textContent= u.rulerefSummary;
+  $("thSev").textContent         = u.thSev;
+  $("thProb").textContent        = u.thProb;
+  $("thImpact").textContent      = u.thImpact;
+  buildRuleTable();
+  [...$("langBtns").children].forEach(b =>
+    b.classList.toggle("on", b.getAttribute("data-lang") === LANG));
+}
+
+function setLang(l){
+  if (!I18N[l]) return;
+  LANG = l;
+  try { localStorage.setItem("lcv-lang", l); } catch(e){}
+  applyStaticText();
+  if (LAST && LAST.length) render(LAST);   // 已有結果就用新語言重畫
 }
 
 /* ═══════════════════════ 事件 ═══════════════════════ */
@@ -1013,11 +1433,16 @@ function readFiles(files){
 $("fileInput").addEventListener("change", e => readFiles(e.target.files));
 $("checkPaste").addEventListener("click", () => {
   const t = $("pasteBox").value;
-  if (!trimWs(t)){ alert("請先貼上 log 內容。"); return; }
-  run([{name:"（貼上的內容）", text:t}]);
+  if (!trimWs(t)){ alert(U().alertPaste); return; }
+  run([{name:U().pastedName, text:t}]);
 });
 $("clearBtn").addEventListener("click", () => {
   $("results").innerHTML = ""; $("pasteBox").value = ""; $("fileInput").value = ""; LAST = null;
+});
+
+$("langBtns").addEventListener("click", e => {
+  const b = e.target.closest("button[data-lang]");
+  if (b) setLang(b.getAttribute("data-lang"));
 });
 
 const drop = $("drop");
@@ -1028,16 +1453,6 @@ const drop = $("drop");
 drop.addEventListener("drop", e => { if (e.dataTransfer.files.length) readFiles(e.dataTransfer.files); });
 window.addEventListener("dragover", e => e.preventDefault());
 window.addEventListener("drop", e => e.preventDefault());
-
-/* 規則表 */
-(function(){
-  const sev = {fatal:0, warn:1, info:2};
-  $("ruleTable").innerHTML = Object.entries(RULES)
-    .sort((a,b)=> sev[a[1].sev]-sev[b[1].sev] || a[0].localeCompare(b[0]))
-    .map(([id,R]) =>
-      `<tr><td class="sv s-${R.sev}">${SEVNAME[R.sev]}</td>` +
-      `<td>${esc(R.title)}</td><td>${esc(R.impact)}</td></tr>`).join("");
-})();
 
 /* 深淺色 */
 (function(){
@@ -1051,6 +1466,21 @@ window.addEventListener("drop", e => e.preventDefault());
     document.documentElement.setAttribute("data-theme", next);
     try { localStorage.setItem("lcv-theme", next); } catch(e){}
   });
+})();
+
+/* 初始語言：記住的選擇 → 瀏覽器語言 → 中文 */
+(function(){
+  let l = null;
+  try { l = localStorage.getItem("lcv-lang"); } catch(e){}
+  if (!l || !I18N[l]){
+    const nav = ((navigator.languages && navigator.languages[0]) || navigator.language || "").toLowerCase();
+    if (nav.startsWith("vi")) l = "vi";
+    else if (nav.startsWith("zh")) l = "zh";
+    else if (nav.startsWith("en")) l = "en";
+    else l = "zh";
+  }
+  LANG = l;
+  applyStaticText();
 })();
 </script>
 </body>
