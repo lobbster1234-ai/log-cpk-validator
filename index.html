@@ -184,7 +184,7 @@ table.rules tr:last-child td{border-bottom:0}
 
 <header class="top">
   <h1>Log CPK Validator</h1>
-  <span class="ver">v1.1</span>
+  <span class="ver">v1.2</span>
   <button class="themebtn" id="themeBtn" type="button">切換深／淺色</button>
 </header>
 <p class="sub">
@@ -702,7 +702,7 @@ function render(reports){
              : "這份 log 合格";
     detail = v==="NG" ? mainReason + "下面會告訴你問題在第幾行。"
            : v==="WARN" ? "沒有致命問題，CPK 應該產得出來，但下面幾點可能讓某些測項漏掉。"
-           : "log2cpk2 v1.28 應該可以正常導出 CPK。";
+           : "log2cpk2 v1.29 應該可以正常導出 CPK。";
   } else {
     headline = `${reports.length} 份 log：`
       + [ngList.length?`${ngList.length} 份不合格`:null,
