@@ -199,7 +199,7 @@ table.rules tr:last-child td{border-bottom:0}
 
 <header class="top">
   <h1>Log CPK Validator</h1>
-  <span class="ver">v1.5</span>
+  <span class="ver">v1.6</span>
   <div class="topright">
     <div class="langbtns" id="langBtns">
       <button type="button" data-lang="zh">中文</button>
@@ -992,6 +992,13 @@ function checkNRLTE(raw, i, headLine, add){
     if (!s || !/^\d{4}\/\d{2}\/\d{2}/.test(s)) break;
     const body = s.slice(20);
     if (!/^[A-Za-z0-9_]*\d+,/.test(body) && !body.includes(",")) break;
+    // 依 log2cpk2 v1.30 的篩選順序：被略過的行不檢查，不認得的行視為表格結束
+    if (s.includes("Freq") || s.includes("FR1")) ;
+    else if (s.includes("_Testing_Initialization") || s.includes("_Testing_Time")) continue;
+    else if (s.includes("RFCAL_TXRX_VER_LTE_")) continue;
+    else if (s.includes("Internal") || s.includes("External")) ;
+    else if (s.includes("TX_VER_LTE_") || s.includes("RX_VER_LTE_")) ;
+    else break;
     const c = body.split(",").length;
     if (c !== 7){ add("R10", j+1, {k:"cols", n:c}, {dedup:"nrcols"}); return; }
   }
