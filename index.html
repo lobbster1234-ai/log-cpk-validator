@@ -199,7 +199,7 @@ table.rules tr:last-child td{border-bottom:0}
 
 <header class="top">
   <h1>Log CPK Validator</h1>
-  <span class="ver">v1.7</span>
+  <span class="ver">v1.8</span>
   <div class="topright">
     <div class="langbtns" id="langBtns">
       <button type="button" data-lang="zh">中文</button>
@@ -271,7 +271,7 @@ zh:{
     checkPaste:"檢查這段 log",
     rulerefSummary:"這個網頁會檢查什麼（16 項）",
     thSev:"嚴重度", thProb:"問題", thImpact:"為什麼會跑不出 CPK",
-    alertPaste:"請先貼上 log 內容。", pastedName:"（貼上的內容）",
+    alertPaste:"請先貼上 log 內容。", alertPick:"無法選擇檔案：", pastedName:"（貼上的內容）",
     export:"⬇ 一鍵匯出 Excel",
     expandAll:"全部展開", collapseAll:"一鍵收合",
     hintOpen:"點擊查看詳細內容",
@@ -412,7 +412,7 @@ en:{
     checkPaste:"Check this log",
     rulerefSummary:"What this page checks (16 items)",
     thSev:"Severity", thProb:"Problem", thImpact:"Why CPK fails",
-    alertPaste:"Please paste the log content first.", pastedName:"(pasted content)",
+    alertPaste:"Please paste the log content first.", alertPick:"Cannot select files: ", pastedName:"(pasted content)",
     export:"⬇ Export Excel",
     expandAll:"Expand all", collapseAll:"Collapse all",
     hintOpen:"Click for details",
@@ -554,7 +554,7 @@ vi:{
     checkPaste:"Kiểm tra đoạn log này",
     rulerefSummary:"Trang này kiểm tra những gì (16 mục)",
     thSev:"Mức độ", thProb:"Vấn đề", thImpact:"Vì sao không ra được CPK",
-    alertPaste:"Vui lòng dán nội dung log trước.", pastedName:"(Nội dung đã dán)",
+    alertPaste:"Vui lòng dán nội dung log trước.", alertPick:"Không thể chọn tệp: ", pastedName:"(Nội dung đã dán)",
     export:"⬇ Xuất Excel",
     expandAll:"Mở tất cả", collapseAll:"Thu gọn tất cả",
     hintOpen:"Bấm để xem chi tiết",
@@ -1484,6 +1484,19 @@ function readFiles(files){
 }
 
 $("fileInput").addEventListener("change", e => readFiles(e.target.files));
+// 選檔案：優先用新版選檔視窗（showOpenFilePicker）——公司電腦會擋傳統的選檔按鈕，新版視窗實測可以（RF 網頁同做法）；
+// 不支援的瀏覽器（Firefox）退回傳統的 <input type=file>
+async function pickFiles(){
+  if (!window.showOpenFilePicker) return $("fileInput").click();
+  let files;
+  try {
+    const hs = await window.showOpenFilePicker({multiple:true,
+      types:[{description:"log", accept:{"text/plain":[".log",".txt"]}}]});
+    files = await Promise.all(hs.map(h => h.getFile()));
+  } catch (err) { if (err.name !== "AbortError") alert(U().alertPick + err.message); return; }   // 按取消不提示
+  readFiles(files);
+}
+$("pickLabel").addEventListener("click", e => { e.preventDefault(); pickFiles(); });
 $("checkPaste").addEventListener("click", () => {
   const t = $("pasteBox").value;
   if (!trimWs(t)){ alert(U().alertPaste); return; }
